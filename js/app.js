@@ -58,6 +58,42 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+/* Conjunto de ícones vetoriais (line icons) no estilo traço fino. Herdam a cor
+   via `currentColor`, então funcionam nos temas claro e escuro sem ajuste. As
+   marcações são constantes (sem dados do usuário), montadas com DOMParser para
+   garantir o namespace SVG correto. */
+const ICONS = {
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>',
+  calendar: '<rect x="3.5" y="4.5" width="17" height="16" rx="2"/><path d="M3.5 9h17M8 3v3M16 3v3"/>',
+  package: '<path d="M12 3 3.5 7.5v9L12 21l8.5-4.5v-9z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/>',
+  alert: '<path d="M12 4 3 19h18z"/><path d="M12 10v4M12 17h.01"/>',
+  percent: '<path d="M19 5 5 19"/><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
+  award: '<circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5 7 21l5-2.5L17 21l-1.5-7.5"/>',
+  tag: '<path d="M3.5 11.5v-7a1 1 0 0 1 1-1h7l9 9-8 8-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  cart: '<circle cx="9.5" cy="19.5" r="1.5"/><circle cx="17.5" cy="19.5" r="1.5"/><path d="M2 3h3l2.2 12h11l1.8-8H6.2"/>',
+  archive: '<rect x="3.5" y="4" width="17" height="4.5" rx="1"/><path d="M5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4"/>',
+  card: '<rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M2.5 10h19"/>',
+  truck: '<path d="M3 6.5h11v8.5H3zM14 10h3.5l3 3v2H14z"/><circle cx="7" cy="17.5" r="1.5"/><circle cx="17.5" cy="17.5" r="1.5"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5-5.5"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-5.5 6.5-5.5s6.5 1.9 6.5 5.5"/><path d="M16 5a3.5 3.5 0 0 1 0 6M21.5 20c0-2.7-1.1-4.4-2.8-5.2"/>',
+  message: '<path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
+  clipboard: '<rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V6H9z"/><path d="M9 11h6M9 14.5h6"/>',
+  cloud: '<path d="M7.5 18.5a4.5 4.5 0 0 1-.5-9 5.5 5.5 0 0 1 10.6 1.4A3.8 3.8 0 0 1 17 18.5z"/>',
+  map: '<path d="M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6 9 4z"/><path d="M9 4v14M15 6v14"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+  store: '<path d="M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M3.5 10 5 4.5h14L20.5 10M9.5 20v-5.5h5V20"/>',
+  cupcake: '<path d="M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z"/><path d="M6 11a4 4 0 0 1 .6-7.4A4 4 0 0 1 12 2.5a4 4 0 0 1 5.4 1.1A4 4 0 0 1 18 11z"/>',
+  cake: '<path d="M4 21h16"/><path d="M5.5 21v-7h13v7"/><path d="M5.5 14v-2.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2V14"/><path d="M12 9.5V6.5"/><circle cx="12" cy="5" r="1" fill="currentColor" stroke="none"/>',
+};
+
+function icon(name, cls = "icon") {
+  const markup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"`
+    + ` stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`
+    + ` class="${cls}" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+  return document.importNode(
+    new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true);
+}
+
 let toastTimer = null;
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -70,13 +106,25 @@ function toast(msg) {
 /* ---------- Persistência ---------- */
 
 const STORE_KEY = "bolosdabru-v1";
+const SESSION_KEY = "bolosdabru-session";
 
 const CHANNEL_LABELS = { balcao: "Balcão", delivery: "Delivery", encomenda: "Encomenda" };
+
+/* Perfis de acesso. IMPORTANTE: este login é do lado do cliente (front-end),
+   pensado para separar a vitrine do cliente do painel da administradora e
+   demonstrar controle de permissões. Não é segurança real — para isso é
+   preciso um servidor com autenticação (ver roteiro na aba Dicas). */
+const ACCOUNTS = {
+  admin: { password: "bru2024", role: "admin", name: "Bru · Administradora" },
+  cliente: { password: "cliente123", role: "cliente", name: "Cliente (visitante)" },
+};
+let currentRole = null;
 
 const db = {
   products: [],
   sales: [],
   promos: [],
+  subscribers: [],
   settings: { whatsapp: "" },
 };
 
@@ -100,6 +148,7 @@ function loadDB() {
     db.products = data.products || [];
     db.sales = data.sales || [];
     db.promos = data.promos || [];
+    db.subscribers = data.subscribers || [];
     db.settings = Object.assign({ whatsapp: "" }, data.settings);
   } catch { /* dados corrompidos: recomeça vazio */ }
 }
@@ -830,7 +879,7 @@ function renderCart() {
     subtotal += line.product.price * line.qty;
     discount += line.discount;
     const nameCell = el("td", {}, line.product.name);
-    if (line.promoName) nameCell.append(el("span", { class: "promo-tag" }, `🏷 ${line.promoName}`));
+    if (line.promoName) nameCell.append(el("span", { class: "promo-tag" }, [icon("tag"), line.promoName]));
     tbody.append(el("tr", {}, [
       nameCell,
       el("td", { class: "num" }, fmtInt(line.qty)),
@@ -1293,7 +1342,7 @@ function computeTips() {
   const pending = pendingOrders();
   for (const o of pending.filter((s) => s.deliveryDate < todayISO())) {
     tips.push({
-      level: "critical", icon: "⏰",
+      level: "critical", icon: "clock",
       title: `Encomenda de ${o.customer?.name || "cliente"} está atrasada`,
       text: `A entrega era ${fmtDateBR(o.deliveryDate)} (${fmtMoney(saleTotal(o))}). Fale com o cliente pelo contato cadastrado e reagende, ou conclua no painel "Encomendas abertas".`,
     });
@@ -1302,7 +1351,7 @@ function computeTips() {
   if (soon.length) {
     const potes = soon.reduce((a, s) => a + s.items.reduce((x, it) => x + it.qty, 0), 0);
     tips.push({
-      level: "warning", icon: "🗓️",
+      level: "warning", icon: "calendar",
       title: `${soon.length} encomenda(s) para os próximos 2 dias`,
       text: `São ${fmtInt(potes)} pote(s) no total. Confira os sabores no painel "Encomendas abertas" e organize a produção com antecedência.`,
     });
@@ -1314,7 +1363,7 @@ function computeTips() {
   for (const p of out) {
     const demand = sold30[p.id] || 0;
     tips.push({
-      level: "critical", icon: "📦", title: `"${p.name}" está esgotado`,
+      level: "critical", icon: "package", title: `"${p.name}" está esgotado`,
       text: demand
         ? `Esse sabor vendeu ${fmtInt(demand)} pote(s) nos últimos 30 dias. Cada dia sem estoque é venda perdida — produza um novo lote o quanto antes.`
         : "Produza um novo lote ou avalie se vale manter esse sabor no cardápio.",
@@ -1322,7 +1371,7 @@ function computeTips() {
   }
   if (low.length) {
     tips.push({
-      level: "warning", icon: "⚠️",
+      level: "warning", icon: "alert",
       title: `Estoque baixo: ${low.map((p) => p.name).join(", ")}`,
       text: "Com 5 potes ou menos, você corre o risco de perder vendas de fim de semana, que são seus dias mais fortes. Planeje a produção com base na coluna \"Vend. 30d\" da tela de Produtos.",
     });
@@ -1333,7 +1382,7 @@ function computeTips() {
     const margin = p.price > 0 ? (p.price - p.cost) / p.price : 0;
     if (margin < 0.4) {
       tips.push({
-        level: "serious", icon: "💰", title: `Margem apertada em "${p.name}" (${Math.round(margin * 100)}%)`,
+        level: "serious", icon: "percent", title: `Margem apertada em "${p.name}" (${Math.round(margin * 100)}%)`,
         text: `Preço ${fmtMoney(p.price)} com custo ${fmtMoney(p.cost)}. Para doces artesanais, busque margem de 50–65%: renegocie insumos, reduza o custo da embalagem ou reajuste o preço em pequenos passos.`,
       });
     }
@@ -1345,7 +1394,7 @@ function computeTips() {
     const best = db.products.find((p) => p.id === ranked[0][0]);
     if (best) {
       tips.push({
-        level: "good", icon: "🏆", title: `"${best.name}" é o campeão dos últimos 30 dias`,
+        level: "good", icon: "award", title: `"${best.name}" é o campeão dos últimos 30 dias`,
         text: `${fmtInt(ranked[0][1])} potes vendidos. Destaque-o nas redes sociais, garanta estoque extra para o fim de semana e use-o como porta de entrada para combos com sabores menos vendidos.`,
       });
     }
@@ -1357,7 +1406,7 @@ function computeTips() {
     const hasPromo = db.promos.some((pr) => pr.productId === p.id && promoStatus(pr) === "ativa");
     if (!hasPromo) {
       tips.push({
-        level: "info", icon: "🏷️", title: `"${p.name}" está vendendo pouco`,
+        level: "info", icon: "tag", title: `"${p.name}" está vendendo pouco`,
         text: `Apenas ${fmtInt(sold30[p.id] || 0)} pote(s) em 30 dias com ${fmtInt(p.stock)} em estoque. Crie uma promoção relâmpago na aba Promoções — o desconto é aplicado automaticamente no carrinho.`,
       });
     }
@@ -1369,7 +1418,7 @@ function computeTips() {
   const minDay = weekTotals.indexOf(Math.min(...weekTotals));
   if (weekTotals[maxDay] > 0 && maxDay !== minDay) {
     tips.push({
-      level: "info", icon: "📅", title: `${WEEKDAYS[maxDay]} é seu melhor dia; ${WEEKDAYS[minDay]}, o mais fraco`,
+      level: "info", icon: "calendar", title: `${WEEKDAYS[maxDay]} é seu melhor dia; ${WEEKDAYS[minDay]}, o mais fraco`,
       text: `Concentre a produção na véspera de ${WEEKDAYS[maxDay]} e teste uma promoção "só hoje" para movimentar ${WEEKDAYS[minDay]}, como um desconto no segundo pote.`,
     });
   }
@@ -1382,7 +1431,7 @@ function computeTips() {
       ? db.products.reduce((a, p) => a + p.price, 0) / db.products.length : 0;
     if (avgPrice && ticket < avgPrice * 1.5) {
       tips.push({
-        level: "info", icon: "🛒", title: `Ticket médio de ${fmtMoney(ticket)} — dá para aumentar`,
+        level: "info", icon: "cart", title: `Ticket médio de ${fmtMoney(ticket)} — dá para aumentar`,
         text: "A maioria das vendas leva poucos potes. Ofereça combos (\"leve 3, pague menos\"), kit degustação com sabores variados ou brinde a partir de certo valor para puxar o ticket para cima.",
       });
     }
@@ -1392,7 +1441,7 @@ function computeTips() {
   const expired = db.promos.filter((p) => promoStatus(p) === "expirada");
   if (expired.length >= 2) {
     tips.push({
-      level: "info", icon: "🧹", title: `${expired.length} promoções expiradas na lista`,
+      level: "info", icon: "archive", title: `${expired.length} promoções expiradas na lista`,
       text: "Elas já não têm efeito no carrinho. Exclua as antigas ou reaproveite as que funcionaram, ajustando as datas de vigência.",
     });
   }
@@ -1402,7 +1451,7 @@ function computeTips() {
   const totalRevenue30 = sales30.reduce((a, s) => a + saleTotal(s), 0);
   if (totalRevenue30 > 0 && pixRevenue / totalRevenue30 < 0.4) {
     tips.push({
-      level: "info", icon: "💸", title: "Incentive o pagamento por Pix",
+      level: "info", icon: "card", title: "Incentive o pagamento por Pix",
       text: "O Pix não tem taxa de máquina. Um desconto simbólico para Pix (1–2%) costuma sair mais barato do que a taxa do cartão e o dinheiro cai na hora.",
     });
   }
@@ -1413,14 +1462,14 @@ function computeTips() {
     .reduce((a, s) => a + saleTotal(s), 0);
   if (totalRevenue30 > 0 && deliveryRevenue / totalRevenue30 < 0.15) {
     tips.push({
-      level: "info", icon: "🛵", title: "O delivery ainda é pequeno nas suas vendas",
+      level: "info", icon: "truck", title: "O delivery ainda é pequeno nas suas vendas",
       text: "Menos de 15% da receita vem de entregas. Divulgue a aba Loja nos stories e no status do WhatsApp com um horário fixo de entregas — pedido entregue em casa vira cliente recorrente.",
     });
   }
 
   if (!tips.length) {
     tips.push({
-      level: "good", icon: "✅", title: "Tudo em ordem por aqui",
+      level: "good", icon: "check", title: "Tudo em ordem por aqui",
       text: "Estoque saudável, margens boas e vendas equilibradas. Continue registrando cada venda para que as análises fiquem cada vez mais precisas.",
     });
   }
@@ -1428,12 +1477,12 @@ function computeTips() {
 }
 
 const ROADMAP = [
-  { icon: "👤", title: "Cadastro de clientes e fidelidade", text: "Registre nome e WhatsApp de quem compra. Um cartão fidelidade simples (a cada 10 potes, 1 grátis) aumenta a recompra — e a lista de contatos vira canal de divulgação de novos sabores." },
-  { icon: "📲", title: "Pedidos pelo WhatsApp com link do catálogo", text: "Divulgue um catálogo com fotos e preços e receba pedidos por mensagem. Registre-os aqui na aba Vendas para manter o histórico completo." },
-  { icon: "🧾", title: "Controle de insumos e validade", text: "Hoje o sistema controla potes prontos. O próximo passo é controlar ingredientes (leite condensado, creme de leite, embalagens) e datas de validade dos lotes produzidos." },
-  { icon: "☁️", title: "Loja on-line de verdade (com servidor)", text: "Hoje a aba Loja funciona neste navegador e os pedidos de fora chegam pelo WhatsApp. O próximo passo é hospedar a loja com um banco de dados on-line, para o pedido do cliente cair aqui sozinho, de qualquer lugar." },
-  { icon: "🗺️", title: "Zonas de entrega com taxa automática", text: "A taxa de entrega hoje é digitada a cada venda. Evolua para uma tabela de bairros com taxa e tempo estimado — menos erro e mais transparência para o cliente." },
-  { icon: "📈", title: "Metas mensais", text: "Defina uma meta de receita por mês e acompanhe pelo dashboard. Meta visível muda comportamento: fica claro quando vale fazer uma promoção para fechar o mês." },
+  { icon: "users", title: "Cadastro de clientes e fidelidade", text: "Registre nome e WhatsApp de quem compra. Um cartão fidelidade simples (a cada 10 potes, 1 grátis) aumenta a recompra — e a lista de contatos vira canal de divulgação de novos sabores." },
+  { icon: "message", title: "Pedidos pelo WhatsApp com link do catálogo", text: "Divulgue um catálogo com fotos e preços e receba pedidos por mensagem. Registre-os aqui na aba Vendas para manter o histórico completo." },
+  { icon: "clipboard", title: "Controle de insumos e validade", text: "Hoje o sistema controla potes prontos. O próximo passo é controlar ingredientes (leite condensado, creme de leite, embalagens) e datas de validade dos lotes produzidos." },
+  { icon: "cloud", title: "Loja on-line de verdade (com servidor)", text: "Hoje a aba Loja funciona neste navegador e os pedidos de fora chegam pelo WhatsApp. O próximo passo é hospedar a loja com um banco de dados on-line, para o pedido do cliente cair aqui sozinho, de qualquer lugar." },
+  { icon: "map", title: "Zonas de entrega com taxa automática", text: "A taxa de entrega hoje é digitada a cada venda. Evolua para uma tabela de bairros com taxa e tempo estimado — menos erro e mais transparência para o cliente." },
+  { icon: "target", title: "Metas mensais", text: "Defina uma meta de receita por mês e acompanhe pelo dashboard. Meta visível muda comportamento: fica claro quando vale fazer uma promoção para fechar o mês." },
 ];
 
 function renderTips() {
@@ -1441,7 +1490,7 @@ function renderTips() {
   list.textContent = "";
   for (const tip of computeTips()) {
     list.append(el("div", { class: `tip ${tip.level}` }, [
-      el("span", { class: "tip-icon" }, tip.icon),
+      el("span", { class: "tip-icon" }, icon(tip.icon)),
       el("div", {}, [el("h3", {}, tip.title), el("p", {}, tip.text)]),
     ]));
   }
@@ -1449,7 +1498,7 @@ function renderTips() {
   roadmap.textContent = "";
   for (const item of ROADMAP) {
     roadmap.append(el("div", { class: "tip info" }, [
-      el("span", { class: "tip-icon" }, item.icon),
+      el("span", { class: "tip-icon" }, icon(item.icon)),
       el("div", {}, [el("h3", {}, item.title), el("p", {}, item.text)]),
     ]));
   }
@@ -1499,40 +1548,48 @@ function renderShop() {
   if (!db.products.length) {
     grid.append(el("p", { class: "empty-msg" }, "O cardápio está sendo preparado. Volte em breve!"));
   }
-  for (const p of [...db.products].sort((a, b) => a.name.localeCompare(b.name))) {
+  const sortedProducts = [...db.products].sort((a, b) => a.name.localeCompare(b.name));
+  sortedProducts.forEach((p, idx) => {
     const promo = bestPromoFor(p.id, p.price);
     const priceLine = el("div", { class: "shop-price" });
     if (promo) {
       priceLine.append(
         el("s", {}, fmtMoney(p.price)), " ",
         el("strong", {}, fmtMoney(p.price - promo.discountPerUnit)),
-        el("span", { class: "promo-tag" }, `🏷 ${promo.name}`),
+        el("span", { class: "promo-tag" }, [icon("tag"), promo.name]),
       );
     } else {
       priceLine.append(el("strong", {}, fmtMoney(p.price)));
     }
     const qty = qtyOf(p.id);
-    grid.append(el("div", { class: "shop-item" }, [
-      el("div", { class: "shop-item-info" }, [
-        el("h3", {}, p.name),
-        priceLine,
-        p.stock > 0
-          ? el("span", { class: "badge good" }, "pronta entrega")
-          : el("span", { class: "badge neutral" }, "sob encomenda"),
-      ]),
-      el("div", { class: "shop-stepper" }, [
-        el("button", {
-          type: "button", class: "btn small step", "aria-label": `Tirar um pote de ${p.name}`,
-          onclick: () => shopAdd(p.id, -1),
-        }, "−"),
-        el("span", { class: "shop-qty", "aria-live": "polite" }, fmtInt(qty)),
-        el("button", {
-          type: "button", class: "btn small step", "aria-label": `Adicionar um pote de ${p.name}`,
-          onclick: () => shopAdd(p.id, 1),
-        }, "+"),
+    // "Foto" ilustrada: enquanto não há imagem real, um selo com o ícone do
+    // produto (alterna bolo/cupcake) dá cara de cardápio de confeitaria.
+    const photo = el("div", { class: `shop-item-photo tone-${idx % 4}` }, icon(idx % 2 ? "cake" : "cupcake"));
+    if (qty > 0) photo.append(el("span", { class: "shop-item-count" }, fmtInt(qty)));
+    grid.append(el("div", { class: "shop-item" + (qty > 0 ? " in-cart" : "") }, [
+      photo,
+      el("div", { class: "shop-item-body" }, [
+        el("div", { class: "shop-item-info" }, [
+          el("h3", {}, p.name),
+          priceLine,
+          p.stock > 0
+            ? el("span", { class: "badge good" }, "pronta entrega")
+            : el("span", { class: "badge neutral" }, "sob encomenda"),
+        ]),
+        el("div", { class: "shop-stepper" }, [
+          el("button", {
+            type: "button", class: "btn small step", "aria-label": `Tirar um pote de ${p.name}`,
+            onclick: () => shopAdd(p.id, -1),
+          }, "−"),
+          el("span", { class: "shop-qty", "aria-live": "polite" }, fmtInt(qty)),
+          el("button", {
+            type: "button", class: "btn small step", "aria-label": `Adicionar um pote de ${p.name}`,
+            onclick: () => shopAdd(p.id, 1),
+          }, "+"),
+        ]),
       ]),
     ]));
-  }
+  });
 
   let total = 0;
   if (!lines.length) {
@@ -1594,7 +1651,7 @@ function submitShopOrder(ev) {
 
   // Resumo para o cliente mandar no WhatsApp da loja.
   const summary = [
-    "Olá! Acabei de fazer um pedido na loja Bolos da Bru 🍰",
+    "Olá! Acabei de fazer um pedido na loja Bolos da Bru.",
     ...sale.items.map((it) => `• ${it.qty}× ${it.name}`),
     `Total: ${fmtMoney(saleTotal(sale))}`,
     `Para: ${fmtDateBR(dueDate)} (${wantsDelivery ? "entrega em " + address : "retirada"})`,
@@ -1608,7 +1665,7 @@ function submitShopOrder(ev) {
   confirmation.hidden = false;
   confirmation.append(
     el("div", { class: "tip good" }, [
-      el("span", { class: "tip-icon" }, "🎉"),
+      el("span", { class: "tip-icon" }, icon("check")),
       el("div", {}, [
         el("h3", {}, "Pedido enviado!"),
         el("p", {}, `Obrigada, ${name}! Seu pedido para ${fmtDateBR(dueDate)} entrou na fila de produção. Se quiser agilizar, mande o resumo no nosso WhatsApp:`),
@@ -1622,11 +1679,79 @@ function submitShopOrder(ev) {
   toast("Pedido registrado! Ele já aparece nas encomendas abertas.");
 }
 
+const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
+
+/* Acompanhamento: o cliente busca os próprios pedidos pelo telefone. Funciona
+   com os pedidos registrados neste dispositivo/loja. */
+function trackOrders() {
+  const box = document.getElementById("track-result");
+  box.textContent = "";
+  const phone = onlyDigits(document.getElementById("track-phone").value);
+  if (phone.length < 8) { toast("Digite o telefone completo, com DDD."); return; }
+
+  const found = db.sales
+    .filter((s) => s.customer && onlyDigits(s.customer.phone) === phone)
+    .sort((a, b) => (b.deliveryDate || b.dateISO).localeCompare(a.deliveryDate || a.dateISO));
+
+  if (!found.length) {
+    box.append(el("p", { class: "empty-msg" },
+      "Nenhum pedido encontrado para esse telefone. Confira o número ou fale com a gente no WhatsApp."));
+    return;
+  }
+  const statusInfo = {
+    pendente: { cls: "warning", label: "Em produção" },
+    ok: { cls: "good", label: "Concluído" },
+    cancelled: { cls: "critical", label: "Cancelado" },
+  };
+  for (const s of found) {
+    const info = statusInfo[s.status] || statusInfo.pendente;
+    const items = s.items.map((it) => `${it.qty}× ${it.name}`).join(", ");
+    box.append(el("div", { class: "track-item" }, [
+      el("div", { class: "track-item-head" }, [
+        el("span", { class: `badge ${info.cls}` }, info.label),
+        el("span", { class: "track-date" },
+          (s.deliveryDate ? "Entrega " + fmtDateBR(s.deliveryDate) : fmtDateBR(s.dateISO))),
+      ]),
+      el("div", { class: "track-item-body" }, items),
+      el("strong", {}, fmtMoney(saleTotal(s))),
+    ]));
+  }
+}
+
+/* Cadastro de novidades: guarda o contato para avisos de sabores e promoções. */
+function submitSignup(ev) {
+  ev.preventDefault();
+  const name = document.getElementById("signup-name").value.trim();
+  const phone = document.getElementById("signup-phone").value.trim();
+  const box = document.getElementById("signup-result");
+  if (!name || onlyDigits(phone).length < 8) {
+    toast("Informe seu nome e um telefone válido com DDD."); return;
+  }
+  const digits = onlyDigits(phone);
+  const already = db.subscribers.some((s) => onlyDigits(s.phone) === digits);
+  if (!already) db.subscribers.push({ id: uid(), name, phone, since: todayISO() });
+  saveDB();
+  document.getElementById("signup-form").reset();
+  box.textContent = "";
+  box.append(el("div", { class: "tip good" }, [
+    el("span", { class: "tip-icon" }, icon("check")),
+    el("div", {}, [
+      el("h3", {}, already ? "Você já está na lista!" : "Cadastro feito!"),
+      el("p", {}, already
+        ? "Esse telefone já recebe nossas novidades. Fique de olho no WhatsApp. 💛"
+        : `Prontinho, ${name}! Você vai receber os sabores da semana e as promoções em primeira mão.`),
+    ]),
+  ]));
+  toast(already ? "Esse contato já estava cadastrado." : "Cadastro realizado com sucesso!");
+}
+
 /* ============================================================
    Navegação, eventos e inicialização
    ============================================================ */
 
 function switchView(view) {
+  // O cliente só tem acesso à Loja — qualquer navegação recai nela.
+  if (currentRole === "cliente") view = "loja";
   document.querySelectorAll(".tab").forEach((t) => {
     const active = t.dataset.view === view;
     t.classList.toggle("active", active);
@@ -1635,6 +1760,40 @@ function switchView(view) {
   document.querySelectorAll(".view").forEach((v) => {
     v.classList.toggle("active", v.id === `view-${view}`);
   });
+}
+
+/* ---------- Autenticação e perfis ---------- */
+
+function readSession() {
+  try { return localStorage.getItem(SESSION_KEY); } catch { return null; }
+}
+
+function applyRole(username) {
+  const acc = ACCOUNTS[username];
+  if (!acc) return;
+  currentRole = acc.role;
+  document.body.classList.toggle("role-cliente", acc.role === "cliente");
+  document.body.classList.toggle("role-admin", acc.role === "admin");
+  document.getElementById("user-badge").textContent = acc.name;
+  document.getElementById("login-gate").hidden = true;
+  switchView(acc.role === "cliente" ? "loja" : "dashboard");
+}
+
+function doLogin(username, password) {
+  const acc = ACCOUNTS[username];
+  if (!acc || acc.password !== password) return false;
+  try { localStorage.setItem(SESSION_KEY, username); } catch { /* sem persistência */ }
+  applyRole(username);
+  return true;
+}
+
+function logout() {
+  try { localStorage.removeItem(SESSION_KEY); } catch { /* sem persistência */ }
+  currentRole = null;
+  document.body.classList.remove("role-cliente", "role-admin");
+  document.getElementById("login-form").reset();
+  document.getElementById("login-error").hidden = true;
+  document.getElementById("login-gate").hidden = false;
 }
 
 function renderAll() {
@@ -1653,6 +1812,28 @@ function renderAll() {
 }
 
 function bindEvents() {
+  document.getElementById("login-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const user = document.getElementById("login-user").value.trim().toLowerCase();
+    const pass = document.getElementById("login-pass").value;
+    const errorEl = document.getElementById("login-error");
+    if (doLogin(user, pass)) {
+      document.getElementById("login-form").reset();
+      errorEl.hidden = true;
+    } else {
+      errorEl.textContent = "Usuário ou senha inválidos.";
+      errorEl.hidden = false;
+    }
+  });
+  document.querySelectorAll(".login-demo-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("login-user").value = btn.dataset.user;
+      document.getElementById("login-pass").value = btn.dataset.pass;
+      doLogin(btn.dataset.user, btn.dataset.pass);
+    });
+  });
+  document.getElementById("btn-logout").addEventListener("click", logout);
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchView(tab.dataset.view));
   });
@@ -1682,6 +1863,11 @@ function bindEvents() {
       document.getElementById("shop-address-field").hidden = !wantsDelivery;
     });
   });
+  document.getElementById("btn-track").addEventListener("click", trackOrders);
+  document.getElementById("track-phone").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); trackOrders(); }
+  });
+  document.getElementById("signup-form").addEventListener("submit", submitSignup);
 
   document.getElementById("product-form").addEventListener("submit", submitProductForm);
   document.getElementById("btn-cancel-edit").addEventListener("click", resetProductForm);
@@ -1717,7 +1903,7 @@ function bindEvents() {
   });
   document.getElementById("btn-clear-data").addEventListener("click", () => {
     if (!confirm("Apagar TODOS os produtos, vendas e promoções? Essa ação não tem volta.")) return;
-    db.products = []; db.sales = []; db.promos = [];
+    db.products = []; db.sales = []; db.promos = []; db.subscribers = [];
     saveDB();
     state.cart = [];
     renderAll();
@@ -1735,3 +1921,8 @@ resetPromoForm();
 updateSaleFormUI();
 document.getElementById("cfg-whatsapp").value = db.settings.whatsapp || "";
 renderAll();
+
+// Restaura a sessão salva; sem sessão válida, mostra a tela de login.
+const savedSession = readSession();
+if (savedSession && ACCOUNTS[savedSession]) applyRole(savedSession);
+else document.getElementById("login-gate").hidden = false;

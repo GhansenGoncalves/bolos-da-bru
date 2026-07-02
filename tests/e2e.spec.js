@@ -9,9 +9,22 @@ const { test, expect } = require("@playwright/test");
 
 const STORE_KEY = "bolosdabru-v1";
 
-/* Abre o app e carrega os dados de exemplo (o primeiro acesso começa vazio). */
+/* Faz login pelo perfil desejado (admin por padrão). */
+async function loginAs(page, role = "admin") {
+  const creds = role === "cliente"
+    ? { user: "cliente", pass: "cliente123" }
+    : { user: "admin", pass: "bru2024" };
+  await page.fill("#login-user", creds.user);
+  await page.fill("#login-pass", creds.pass);
+  await page.click(".login-submit");
+  await expect(page.locator("#login-gate")).toBeHidden();
+}
+
+/* Abre o app como administrador e carrega os dados de exemplo (o primeiro
+   acesso começa vazio). */
 async function openApp(page) {
   await page.goto("/");
+  await loginAs(page, "admin");
   await page.click("#btn-load-demo");
   await expect(page.locator("#welcome-banner")).toBeHidden();
   await expect(page.locator("#kpi-row .kpi")).toHaveCount(6);
@@ -42,9 +55,60 @@ async function stockOf(page, name) {
   return match ? Number(match[0]) : 0;
 }
 
+test.describe("Acesso e permissões", () => {
+  test("login inválido mostra erro", async ({ page }) => {
+    await page.goto("/");
+    await page.fill("#login-user", "admin");
+    await page.fill("#login-pass", "senhaerrada");
+    await page.click(".login-submit");
+    await expect(page.locator("#login-error")).toBeVisible();
+    await expect(page.locator("#login-gate")).toBeVisible();
+  });
+
+  test("administrador vê todas as abas do sistema", async ({ page }) => {
+    await page.goto("/");
+    await loginAs(page, "admin");
+    await expect(page.locator(".tabs")).toBeVisible();
+    for (const view of ["dashboard", "vendas", "produtos", "promocoes", "dicas", "loja"]) {
+      await expect(page.locator(`.tab[data-view="${view}"]`)).toBeVisible();
+    }
+    await expect(page.locator("#view-dashboard")).toBeVisible();
+  });
+
+  test("cliente entra e vê apenas a loja", async ({ page }) => {
+    await page.goto("/");
+    await loginAs(page, "cliente");
+    await expect(page.locator("#view-loja")).toBeVisible();
+    // As abas administrativas ficam ocultas para o cliente
+    await expect(page.locator(".tabs")).toBeHidden();
+    await expect(page.locator("#view-dashboard")).toBeHidden();
+    await expect(page.locator("#user-badge")).toContainText("Cliente");
+  });
+
+  test("sessão persiste após recarregar e logout volta ao login", async ({ page }) => {
+    await page.goto("/");
+    await loginAs(page, "cliente");
+    await page.reload();
+    // Continua logado como cliente, sem passar pela tela de login de novo
+    await expect(page.locator("#login-gate")).toBeHidden();
+    await expect(page.locator("#view-loja")).toBeVisible();
+
+    await page.click("#btn-logout");
+    await expect(page.locator("#login-gate")).toBeVisible();
+  });
+
+  test("atalho de conta de demonstração entra com um clique", async ({ page }) => {
+    await page.goto("/");
+    await page.click('.login-demo-btn[data-user="admin"]');
+    await expect(page.locator("#login-gate")).toBeHidden();
+    await expect(page.locator("#view-dashboard")).toBeVisible();
+  });
+});
+
 test.describe("Primeiro acesso", () => {
   test("começa vazio, sem dados fictícios, e oferece dados de exemplo", async ({ page }) => {
     await page.goto("/");
+    await loginAs(page, "admin");
     await expect(page.locator("#welcome-banner")).toBeVisible();
     await expect(page.locator("#kpi-row .kpi .value").first()).toHaveText("R$ 0,00");
 
@@ -55,6 +119,7 @@ test.describe("Primeiro acesso", () => {
 
   test("botão de cadastrar produtos leva direto ao formulário", async ({ page }) => {
     await page.goto("/");
+    await loginAs(page, "admin");
     await page.click("#btn-goto-products");
     await expect(page.locator("#view-produtos")).toBeVisible();
     await expect(page.locator("#product-name")).toBeFocused();
@@ -325,6 +390,53 @@ test.describe("Loja (visão do cliente)", () => {
       .getByRole("button", { name: /Adicionar um pote/ }).click();
     await page.click(".shop-submit");
     await expect(page.locator("#toast")).toContainText("Informe seu nome e telefone");
+  });
+
+  test("mostra depoimentos de clientes", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    await expect(page.locator(".shop-reviews .review")).toHaveCount(3);
+    await expect(page.locator(".shop-reviews")).toContainText("Mariana S.");
+  });
+
+  test("cliente acompanha o próprio pedido pelo telefone", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    // Faz um pedido identificável
+    await page.locator(".shop-item", { hasText: "Red Velvet" })
+      .getByRole("button", { name: /Adicionar um pote/ }).click();
+    await page.fill("#shop-name", "Cliente Rastreio");
+    await page.fill("#shop-phone", "(11) 91111-2222");
+    await page.click(".shop-submit");
+    await expect(page.locator("#shop-confirmation")).toContainText("Pedido enviado!");
+
+    // Busca pelos próprios pedidos usando o mesmo telefone
+    await page.fill("#track-phone", "11911112222");
+    await page.click("#btn-track");
+    const result = page.locator("#track-result");
+    await expect(result.locator(".track-item")).toHaveCount(1);
+    await expect(result).toContainText("Em produção");
+    await expect(result).toContainText("Red Velvet");
+
+    // Telefone desconhecido não retorna pedidos
+    await page.fill("#track-phone", "11900000000");
+    await page.click("#btn-track");
+    await expect(page.locator("#track-result")).toContainText("Nenhum pedido encontrado");
+  });
+
+  test("cadastro de novidades confirma e evita duplicidade", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    await page.fill("#signup-name", "Novo Contato");
+    await page.fill("#signup-phone", "(11) 93333-4444");
+    await page.click("#signup-form button[type=submit]");
+    await expect(page.locator("#signup-result")).toContainText("Cadastro feito!");
+
+    // Mesmo telefone novamente → reconhece que já está na lista
+    await page.fill("#signup-name", "Novo Contato");
+    await page.fill("#signup-phone", "11933334444");
+    await page.click("#signup-form button[type=submit]");
+    await expect(page.locator("#signup-result")).toContainText("já está na lista");
   });
 });
 

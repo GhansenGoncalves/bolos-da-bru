@@ -6,13 +6,46 @@
   <meta name="description" content="Bolos da Bru — sistema de gestão de vendas de bolo no pote: dashboard, balcão, delivery, encomendas, promoções e dicas.">
   <meta name="theme-color" content="#2a78d6">
   <title>Bolos da Bru · Bolo no Pote</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B0%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232a78d6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z'/%3E%3Cpath d='M6 11a4 4 0 0 1 .6-7.4A4 4 0 0 1 12 2.5a4 4 0 0 1 5.4 1.1A4 4 0 0 1 18 11z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+  <div id="login-gate" class="login-gate">
+    <div class="login-card">
+      <span class="login-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z"/>
+          <path d="M6 11a4 4 0 0 1 .6-7.4A4 4 0 0 1 12 2.5a4 4 0 0 1 5.4 1.1A4 4 0 0 1 18 11z"/>
+        </svg>
+      </span>
+      <h1>Bolos da Bru</h1>
+      <p class="login-sub">Entre para acessar o sistema</p>
+      <form id="login-form">
+        <label class="field"><span>Usuário</span>
+          <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+        <label class="field"><span>Senha</span>
+          <input type="password" id="login-pass" autocomplete="current-password"></label>
+        <p id="login-error" class="login-error" hidden></p>
+        <button type="submit" class="btn primary login-submit">Entrar</button>
+      </form>
+      <div class="login-demo">
+        <p>Contas de demonstração — clique para entrar:</p>
+        <button type="button" class="login-demo-btn" data-user="admin" data-pass="bru2024">
+          <strong>Administrador</strong><span>acesso total ao sistema</span></button>
+        <button type="button" class="login-demo-btn" data-user="cliente" data-pass="cliente123">
+          <strong>Cliente</strong><span>apenas a loja</span></button>
+      </div>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="brand">
-      <span class="brand-icon" aria-hidden="true">🍰</span>
+      <span class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z"/>
+          <path d="M6 11a4 4 0 0 1 .6-7.4A4 4 0 0 1 12 2.5a4 4 0 0 1 5.4 1.1A4 4 0 0 1 18 11z"/>
+        </svg>
+      </span>
       <div>
         <h1>Bolos da Bru</h1>
         <p>Bolo no pote · balcão, delivery e encomendas</p>
@@ -24,8 +57,17 @@
       <button class="tab" role="tab" aria-selected="false" data-view="produtos">Produtos</button>
       <button class="tab" role="tab" aria-selected="false" data-view="promocoes">Promoções</button>
       <button class="tab" role="tab" aria-selected="false" data-view="dicas">Dicas</button>
-      <button class="tab tab-shop" role="tab" aria-selected="false" data-view="loja">🛍 Loja</button>
+      <button class="tab tab-shop" role="tab" aria-selected="false" data-view="loja">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 10h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M3.5 10 5 4.5h14L20.5 10M9.5 20v-5.5h5V20"/>
+        </svg>
+        Loja
+      </button>
     </nav>
+    <div class="user-area">
+      <span id="user-badge" class="user-badge"></span>
+      <button class="btn small ghost" id="btn-logout">Sair</button>
+    </div>
   </header>
 
   <main>
@@ -317,9 +359,22 @@
     </section>
     <!-- ============ LOJA (visão do cliente) ============ -->
     <section id="view-loja" class="view" role="tabpanel">
+     <div class="shop-canvas">
       <div class="shop-hero">
-        <h2>🍰 Bolos da Bru</h2>
-        <p>Bolo no pote feito em casa, com carinho. Monte seu pedido: retire com a gente ou receba em casa.</p>
+        <span class="shop-hero-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z"/>
+            <path d="M6 11a4 4 0 0 1 .6-7.4A4 4 0 0 1 12 2.5a4 4 0 0 1 5.4 1.1A4 4 0 0 1 18 11z"/>
+          </svg>
+        </span>
+        <p class="shop-eyebrow">Confeitaria artesanal</p>
+        <h2>Bolos da Bru</h2>
+        <p class="shop-tagline">Bolo no pote feito em casa, com carinho. Monte seu pedido: retire com a gente ou receba fresquinho em casa.</p>
+        <ul class="shop-trust" aria-label="Nossos diferenciais">
+          <li>Feito na hora</li>
+          <li>Retirada ou entrega</li>
+          <li>Encomendas para datas</li>
+        </ul>
       </div>
 
       <div class="grid-side shop-layout">
@@ -353,6 +408,55 @@
           <div id="shop-grid" class="shop-grid"></div>
         </article>
       </div>
+
+      <section class="shop-section">
+        <p class="shop-eyebrow">Quem já provou</p>
+        <h3 class="shop-section-title">O que dizem nossos clientes</h3>
+        <div class="shop-reviews">
+          <figure class="review">
+            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+            <blockquote>Melhor bolo no pote que já comi! O de Ninho com Nutella é viciante e chegou fresquinho.</blockquote>
+            <figcaption>Mariana S.</figcaption>
+          </figure>
+          <figure class="review">
+            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+            <blockquote>Encomendei 30 potes para a festa da escola. Pontualíssima e todo mundo amou.</blockquote>
+            <figcaption>Escola Sol Nascente</figcaption>
+          </figure>
+          <figure class="review">
+            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+            <blockquote>Atendimento pelo WhatsApp super rápido e entrega no horário. Virei cliente fiel!</blockquote>
+            <figcaption>Rafael T.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <div class="shop-account">
+        <article class="card">
+          <h3 class="shop-section-title">Acompanhar meu pedido</h3>
+          <p class="card-sub">Digite o telefone usado no pedido para ver a situação das suas encomendas.</p>
+          <div class="shop-track-row">
+            <label class="field grow"><span>Telefone / WhatsApp</span>
+              <input type="tel" id="track-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+            <button class="btn" id="btn-track">Buscar</button>
+          </div>
+          <div id="track-result"></div>
+        </article>
+
+        <article class="card">
+          <h3 class="shop-section-title">Receba as novidades</h3>
+          <p class="card-sub">Cadastre-se para saber dos sabores da semana e promoções em primeira mão.</p>
+          <form id="signup-form">
+            <label class="field"><span>Seu nome</span>
+              <input type="text" id="signup-name" maxlength="60" placeholder="Como podemos te chamar?"></label>
+            <label class="field"><span>Telefone / WhatsApp</span>
+              <input type="tel" id="signup-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+            <button type="submit" class="btn shop-submit">Quero receber novidades</button>
+          </form>
+          <div id="signup-result"></div>
+        </article>
+      </div>
+     </div>
     </section>
   </main>
 

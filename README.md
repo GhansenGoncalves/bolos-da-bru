@@ -8,14 +8,29 @@ com indicadores, vendas de **balcão**, **delivery** (com taxa de entrega) e
 promoções aplicadas automaticamente, uma **Loja on-line** onde o cliente monta
 o próprio pedido e dicas geradas a partir dos dados reais do negócio.
 
+## Acesso (contas de demonstração)
+
+O sistema abre numa tela de login com dois perfis. Na própria tela há atalhos
+que entram com um clique:
+
+| Perfil | Usuário | Senha | Vê |
+|---|---|---|---|
+| **Administrador** | `admin` | `bru2024` | Todo o sistema (dashboard, vendas, produtos, promoções, dicas e loja) |
+| **Cliente** | `cliente` | `cliente123` | Apenas a **Loja** (a vitrine) |
+
+> Este login é do lado do cliente (front-end), pensado para **separar a vitrine
+> do cliente do painel da administradora** e demonstrar controle de permissões.
+> Não é segurança real — para isso é preciso um servidor com autenticação (está
+> no roteiro da aba Dicas).
+
 ## Como usar
 
 Não precisa instalar nada: abra o `index.html` em qualquer navegador moderno.
 Os dados ficam salvos no próprio navegador (localStorage).
 
-O sistema começa **vazio**, pronto para os seus produtos reais. Se quiser
-explorar antes, o botão "Carregar dados de exemplo" da tela inicial preenche
-tudo com dados fictícios — e dá para apagar depois na aba Dicas.
+Entrando como administrador, o sistema começa **vazio**, pronto para os produtos
+reais. Para explorar antes, o botão "Carregar dados de exemplo" da tela inicial
+preenche tudo com dados fictícios — e dá para apagar depois na aba Dicas.
 
 Se preferir servir por HTTP:
 
@@ -25,15 +40,18 @@ npm start   # sobe em http://127.0.0.1:4173
 
 ## Telas
 
-| Dashboard | Vendas e encomendas |
+| Login (dois perfis) | Loja — vitrine do cliente |
+|---|---|
+| ![Tela de login com contas de demonstração](docs/screenshots/login.png) | ![Vitrine de confeitaria com cardápio, depoimentos e cadastro](docs/screenshots/loja.png) |
+
+| Dashboard (painel da administradora) | Vendas e encomendas |
 |---|---|
 | ![Dashboard com KPIs e gráficos](docs/screenshots/dashboard.png) | ![Fluxo de venda com painel de encomendas](docs/screenshots/vendas.png) |
 
-| Loja (visão do cliente) | Dicas geradas dos dados |
-|---|---|
-| ![Loja on-line com carrinho](docs/screenshots/loja.png) | ![Dicas de negócio](docs/screenshots/dicas.png) |
-
-O tema escuro segue a preferência do sistema: [ver screenshot](docs/screenshots/dashboard-dark.png).
+O painel administrativo é enxuto e focado em dados; a **Loja** tem identidade
+própria de confeitaria (tons quentes, tipografia serifada, cardápio ilustrado,
+depoimentos, acompanhamento de pedido e cadastro para novidades). O tema escuro
+segue a preferência do sistema: [ver dashboard escuro](docs/screenshots/dashboard-dark.png).
 
 ## Funcionalidades
 

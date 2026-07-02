@@ -85,6 +85,16 @@ test.describe("Acesso e permissões", () => {
     await expect(page.locator("#user-badge")).toContainText("Cliente");
   });
 
+  test("cliente sempre vê o cardápio com sabores e a data preenchida", async ({ page }) => {
+    await page.goto("/");
+    // Entra como cliente num navegador "novo" (sem dados): a vitrine não pode
+    // ficar vazia e a data do pedido deve vir preenchida.
+    await loginAs(page, "cliente");
+    expect(await page.locator(".shop-item").count()).toBeGreaterThan(0);
+    await expect(page.locator(".shop-item-photo svg").first()).toBeVisible();
+    await expect(page.locator("#shop-date")).not.toHaveValue("");
+  });
+
   test("sessão persiste após recarregar e logout volta ao login", async ({ page }) => {
     await page.goto("/");
     await loginAs(page, "cliente");
@@ -218,8 +228,8 @@ test.describe("Fluxo de venda", () => {
     await page.click("#btn-clear-data");
     await goTo(page, "produtos");
     await page.fill("#product-name", "Bolo de Teste");
-    await page.fill("#product-price", "10");
-    await page.fill("#product-cost", "4");
+    await page.fill("#product-price", "1000");
+    await page.fill("#product-cost", "400");
     await page.fill("#product-stock", "5");
     await page.click('#product-form button[type="submit"]');
 
@@ -245,8 +255,8 @@ test.describe("Fluxo de venda", () => {
     await page.click("#btn-clear-data");
     await goTo(page, "produtos");
     await page.fill("#product-name", "Bolo Persistente");
-    await page.fill("#product-price", "12");
-    await page.fill("#product-cost", "5");
+    await page.fill("#product-price", "1200");
+    await page.fill("#product-cost", "500");
     await page.fill("#product-stock", "4");
     await page.click('#product-form button[type="submit"]');
 
@@ -277,7 +287,7 @@ test.describe("Fluxo de venda", () => {
     await page.check('input[name="channel"][value="delivery"]');
     await page.fill("#sale-customer", "Mariana Prado");
     await page.fill("#sale-address", "Rua das Flores, 12 — Centro");
-    await page.fill("#sale-fee", "7");
+    await page.fill("#sale-fee", "700");
     // Cenoura com Chocolate (R$ 13,00, sem promoção) + taxa R$ 7,00
     await pickProduct(page, "Cenoura com Chocolate");
     await page.click("#btn-add-cart");
@@ -447,8 +457,8 @@ test.describe("Produtos", () => {
     await goTo(page, "produtos");
 
     await page.fill("#product-name", "Pistache");
-    await page.fill("#product-price", "20");
-    await page.fill("#product-cost", "9");
+    await page.fill("#product-price", "2000");
+    await page.fill("#product-cost", "900");
     await page.fill("#product-stock", "10");
     await page.click('#product-form button[type="submit"]');
     const row = page.locator("#products-table tbody tr", { hasText: "Pistache" });
@@ -456,7 +466,7 @@ test.describe("Produtos", () => {
     await expect(row).toContainText("55%"); // margem calculada
 
     await row.getByRole("button", { name: "Editar" }).click();
-    await page.fill("#product-price", "22");
+    await page.fill("#product-price", "2200");
     await page.click('#product-form button[type="submit"]');
     await expect(page.locator("#products-table tbody tr", { hasText: "Pistache" })).toContainText("R$ 22,00");
 

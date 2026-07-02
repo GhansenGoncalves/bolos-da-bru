@@ -94,6 +94,79 @@ function icon(name, cls = "icon") {
     new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true);
 }
 
+/* Cores de recheio por sabor — usadas para "pintar" a ilustração do pote.
+   O nome do produto só é usado para escolher a paleta (nunca injetado no SVG). */
+function flavorColors(name) {
+  const n = (name || "").toLowerCase();
+  const has = (...w) => w.some((x) => n.includes(x));
+  if (has("red velvet", "velvet")) return { fill: "#b1304a", cream: "#f6e7d8" };
+  if (has("morango")) return { fill: "#e0567f", cream: "#f7ead2" };
+  if (has("nutella", "ninho")) return { fill: "#6f4326", cream: "#f6ead0" };
+  if (has("chocolate", "brigadeiro", "prestígio", "prestigio")) return { fill: "#5a3826", cream: "#f3e6cd" };
+  if (has("cenoura")) return { fill: "#d0812f", cream: "#5a3826" };
+  if (has("maracujá", "maracuja", "limão", "limao", "abacaxi")) return { fill: "#f0c24a", cream: "#f7eed6" };
+  if (has("coco", "leite")) return { fill: "#efe6d2", cream: "#c8a06a" };
+  return { fill: "#c17a3c", cream: "#f5e6c8" };
+}
+
+let artUid = 0;
+/* Ilustração de "bolo no pote": um pote de vidro com camadas na cor do sabor,
+   um brilho no vidro e uma cereja. Vale como foto do produto sem depender de
+   imagens externas. */
+function productArtwork(name) {
+  const { fill, cream } = flavorColors(name);
+  const id = "jar" + (++artUid);
+  const markup =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-hidden="true">
+      <defs><clipPath id="${id}"><rect x="21" y="27" width="38" height="39" rx="9"/></clipPath></defs>
+      <rect x="26" y="12" width="28" height="9" rx="3" fill="#cbb089"/>
+      <rect x="23" y="20" width="34" height="7" rx="3" fill="#e3d1aa"/>
+      <rect x="21" y="27" width="38" height="39" rx="9" fill="#fbf7ee"/>
+      <g clip-path="url(#${id})">
+        <rect x="21" y="27" width="38" height="39" fill="${fill}"/>
+        <rect x="21" y="44" width="38" height="8" fill="${cream}"/>
+        <rect x="21" y="27" width="38" height="11" fill="${cream}"/>
+        <path d="M21 40 q9 6 19 0 q10 -6 19 0 v-14 h-38 z" fill="${cream}"/>
+      </g>
+      <rect x="21" y="27" width="38" height="39" rx="9" fill="none" stroke="rgba(64,42,31,0.20)" stroke-width="1.5"/>
+      <rect x="26" y="32" width="3.5" height="28" rx="1.75" fill="rgba(255,255,255,0.5)"/>
+      <circle cx="40" cy="25" r="3.4" fill="#c0293f"/>
+      <path d="M40 22 q2 -3 4 -3" fill="none" stroke="#3f7d3a" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>`;
+  return document.importNode(
+    new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true);
+}
+
+/* ---------- Máscara de moeda (Real brasileiro) ----------
+   Trata o que é digitado como centavos: "1500" vira "15,00". Todos os campos
+   R$ usam type="text" e são lidos por readMoney(). */
+function formatMoneyDigits(raw) {
+  let digits = String(raw).replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  while (digits.length < 3) digits = "0" + digits;
+  const cents = digits.slice(-2);
+  const intPart = digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${intPart},${cents}`;
+}
+function readMoney(input) {
+  const digits = String(input.value).replace(/\D/g, "");
+  return digits ? Number(digits) / 100 : 0;
+}
+function setMoney(input, value) {
+  input.value = formatMoneyDigits(Math.round((Number(value) || 0) * 100).toString());
+}
+function attachMoneyMask(input) {
+  input.addEventListener("input", () => {
+    if (input.dataset.money === "off") return; // desligado (ex.: promoção em %)
+    const pos = input.value.length - input.selectionStart;
+    input.value = formatMoneyDigits(input.value);
+    const caret = Math.max(0, input.value.length - pos);
+    try { input.setSelectionRange(caret, caret); } catch { /* ignora */ }
+  });
+  input.addEventListener("blur", () => {
+    if (input.dataset.money !== "off" && input.value) input.value = formatMoneyDigits(input.value);
+  });
+}
+
 let toastTimer = null;
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -898,7 +971,7 @@ function renderCart() {
 
   const fee = currentChannel() === "balcao"
     ? 0
-    : Math.max(0, Number(document.getElementById("sale-fee").value) || 0);
+    : Math.max(0, readMoney(document.getElementById("sale-fee")));
   document.getElementById("fee-line").hidden = fee <= 0;
   document.getElementById("cart-fee").textContent = fmtMoney(fee);
   document.getElementById("cart-subtotal").textContent = fmtMoney(subtotal);
@@ -940,7 +1013,7 @@ function confirmSale() {
   };
   const fee = channel === "balcao"
     ? 0
-    : Math.max(0, Number(document.getElementById("sale-fee").value) || 0);
+    : Math.max(0, readMoney(document.getElementById("sale-fee")));
   const dueDate = document.getElementById("sale-due-date").value;
 
   if (channel === "delivery" && (!customer.name || !customer.address)) {
@@ -992,7 +1065,7 @@ function confirmSale() {
   for (const id of ["sale-customer", "sale-phone", "sale-address"]) {
     document.getElementById(id).value = "";
   }
-  document.getElementById("sale-fee").value = 0;
+  setMoney(document.getElementById("sale-fee"), 0);
   saveDB();
   renderAll();
   toast(channel === "encomenda"
@@ -1174,8 +1247,8 @@ function startEditProduct(id) {
   document.getElementById("product-form-title").textContent = "Editar produto";
   document.getElementById("product-id").value = id;
   document.getElementById("product-name").value = p.name;
-  document.getElementById("product-price").value = p.price;
-  document.getElementById("product-cost").value = p.cost;
+  setMoney(document.getElementById("product-price"), p.price);
+  setMoney(document.getElementById("product-cost"), p.cost);
   document.getElementById("product-stock").value = p.stock;
   document.getElementById("btn-cancel-edit").classList.remove("hidden");
   document.getElementById("product-name").focus();
@@ -1191,8 +1264,8 @@ function resetProductForm() {
 function submitProductForm(ev) {
   ev.preventDefault();
   const name = document.getElementById("product-name").value.trim();
-  const price = Number(document.getElementById("product-price").value);
-  const cost = Number(document.getElementById("product-cost").value);
+  const price = readMoney(document.getElementById("product-price"));
+  const cost = readMoney(document.getElementById("product-cost"));
   const stock = Math.max(0, Math.floor(Number(document.getElementById("product-stock").value)));
   if (!name || !(price > 0) || cost < 0) { toast("Preencha os campos corretamente."); return; }
   if (cost >= price) toast("Atenção: custo maior ou igual ao preço — margem zero ou negativa.");
@@ -1267,6 +1340,26 @@ function renderPromosTable() {
   }
 }
 
+/* O valor da promoção é R$ (com máscara de moeda) quando o tipo é "fixo" e
+   um percentual simples quando é "%". Ajusta prefixo, máscara e formatação. */
+function applyPromoValueMode(keepValue) {
+  const type = document.getElementById("promo-type").value;
+  const input = document.getElementById("promo-value");
+  const prefix = document.getElementById("promo-value-prefix");
+  const current = keepValue
+    ? (input.dataset.money === "off" ? Number(String(input.value).replace(/\D/g, "")) : readMoney(input))
+    : 0;
+  if (type === "fixed") {
+    prefix.textContent = "R$";
+    input.dataset.money = "on";
+    if (keepValue) setMoney(input, current); else input.value = "";
+  } else {
+    prefix.textContent = "%";
+    input.dataset.money = "off";
+    input.value = keepValue && current ? String(Math.round(current)) : "";
+  }
+}
+
 function startEditPromo(id) {
   const promo = db.promos.find((x) => x.id === id);
   if (!promo) return;
@@ -1276,7 +1369,9 @@ function startEditPromo(id) {
   document.getElementById("promo-name").value = promo.name;
   document.getElementById("promo-product").value = promo.productId || "";
   document.getElementById("promo-type").value = promo.type;
-  document.getElementById("promo-value").value = promo.value;
+  applyPromoValueMode(false);
+  if (promo.type === "fixed") setMoney(document.getElementById("promo-value"), promo.value);
+  else document.getElementById("promo-value").value = String(promo.value);
   document.getElementById("promo-start").value = promo.start;
   document.getElementById("promo-end").value = promo.end;
   document.getElementById("btn-cancel-promo-edit").classList.remove("hidden");
@@ -1290,6 +1385,7 @@ function resetPromoForm() {
   document.getElementById("btn-cancel-promo-edit").classList.add("hidden");
   document.getElementById("promo-start").value = todayISO();
   document.getElementById("promo-end").value = addDays(todayISO(), 7);
+  applyPromoValueMode(false);
 }
 
 function submitPromoForm(ev) {
@@ -1297,7 +1393,10 @@ function submitPromoForm(ev) {
   const name = document.getElementById("promo-name").value.trim();
   const productId = document.getElementById("promo-product").value || null;
   const type = document.getElementById("promo-type").value;
-  const value = Number(document.getElementById("promo-value").value);
+  const valInput = document.getElementById("promo-value");
+  const value = type === "fixed"
+    ? readMoney(valInput)
+    : Number(String(valInput.value).replace(/\D/g, ""));
   const start = document.getElementById("promo-start").value;
   const end = document.getElementById("promo-end").value;
 
@@ -1564,7 +1663,7 @@ function renderShop() {
     const qty = qtyOf(p.id);
     // "Foto" ilustrada: enquanto não há imagem real, um selo com o ícone do
     // produto (alterna bolo/cupcake) dá cara de cardápio de confeitaria.
-    const photo = el("div", { class: `shop-item-photo tone-${idx % 4}` }, icon(idx % 2 ? "cake" : "cupcake"));
+    const photo = el("div", { class: `shop-item-photo tone-${idx % 4}` }, productArtwork(p.name));
     if (qty > 0) photo.append(el("span", { class: "shop-item-count" }, fmtInt(qty)));
     grid.append(el("div", { class: "shop-item" + (qty > 0 ? " in-cart" : "") }, [
       photo,
@@ -1658,8 +1757,10 @@ function submitShopOrder(ev) {
     `Nome: ${name} — ${phone}`,
   ].join("\n");
 
-  renderAll();
+  // Limpa o formulário antes de re-renderizar, para que renderShop reponha
+  // a data padrão (o reset() zera o campo de data).
   document.getElementById("shop-form").reset();
+  renderAll();
   const confirmation = document.getElementById("shop-confirmation");
   confirmation.textContent = "";
   confirmation.hidden = false;
@@ -1776,7 +1877,15 @@ function applyRole(username) {
   document.body.classList.toggle("role-admin", acc.role === "admin");
   document.getElementById("user-badge").textContent = acc.name;
   document.getElementById("login-gate").hidden = true;
+  // A vitrine do cliente nunca deve ficar vazia: se ainda não há produtos
+  // (visitante num navegador novo), carrega o cardápio de exemplo.
+  if (acc.role === "cliente" && !db.products.length) {
+    seedDemoData();
+    saveDB();
+    renderAll();
+  }
   switchView(acc.role === "cliente" ? "loja" : "dashboard");
+  renderShop(); // garante cardápio e data preenchidos ao entrar
 }
 
 function doLogin(username, password) {
@@ -1874,6 +1983,12 @@ function bindEvents() {
 
   document.getElementById("promo-form").addEventListener("submit", submitPromoForm);
   document.getElementById("btn-cancel-promo-edit").addEventListener("click", resetPromoForm);
+  document.getElementById("promo-type").addEventListener("change", () => applyPromoValueMode(true));
+
+  // Máscara de moeda (Real) nos campos de valor
+  ["product-price", "product-cost", "sale-fee", "promo-value"].forEach((id) => {
+    attachMoneyMask(document.getElementById(id));
+  });
 
   const loadDemo = (needsConfirm) => {
     if (needsConfirm && (db.products.length || db.sales.length)

@@ -23,6 +23,8 @@
   --delta-good: #006300;
   --delta-bad: #d03b3b;
   --accent-wash: rgba(42, 120, 214, 0.10);
+  --input-bg: #ffffff;
+  --input-border: rgba(11, 11, 11, 0.28);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -44,6 +46,8 @@
     --seq-550: #184f95;
     --delta-good: #0ca30c;
     --accent-wash: rgba(57, 135, 229, 0.14);
+    --input-bg: #111110;
+    --input-border: rgba(255, 255, 255, 0.28);
   }
 }
 
@@ -206,14 +210,26 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .field span { font-size: 12.5px; color: var(--text-secondary); }
 .field input, .field select {
-  font: inherit; padding: 8px 10px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--page);
+  font: inherit; padding: 9px 11px; border-radius: 8px;
+  border: 1.5px solid var(--input-border); background: var(--input-bg);
   color: var(--text-primary);
 }
-.field input:focus, .field select:focus { outline: 2px solid var(--series-1); outline-offset: 1px; }
+.field input::placeholder { color: var(--text-muted); }
+.field input:focus, .field select:focus {
+  outline: none; border-color: var(--series-1);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 .form-actions { display: flex; gap: 8px; }
+
+/* Campo monetário com prefixo R$ */
+.money-input { position: relative; display: flex; align-items: center; }
+.money-input .money-prefix {
+  position: absolute; left: 11px; font-size: 13.5px; font-weight: 600;
+  color: var(--text-secondary); pointer-events: none;
+}
+.money-input input { width: 100%; padding-left: 32px; font-variant-numeric: tabular-nums; }
 
 .btn {
   font: inherit; font-weight: 600; cursor: pointer;
@@ -325,7 +341,9 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
    segue com o tema neutro de dados. */
 .tab-shop { border: 1px dashed var(--baseline); }
 
-.shop-canvas {
+/* Tokens quentes: valem para a vitrine (.shop-canvas) e, no perfil cliente,
+   para toda a moldura (topo + fundo), para não haver bordas escuras. */
+.shop-canvas, body.role-cliente {
   --cream: #f7ecdc;
   --cream-deep: #f0e2cd;
   --card: #fffaf1;
@@ -334,8 +352,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
   --berry: #b23a5d;
   --berry-deep: #983250;
   --caramel: #c8763a;
-  --line: rgba(64, 42, 31, 0.12);
+  --line: rgba(64, 42, 31, 0.14);
   --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --input-bg: #ffffff;
+  --input-border: rgba(64, 42, 31, 0.34);
+}
+@media (prefers-color-scheme: dark) {
+  .shop-canvas, body.role-cliente {
+    --cream: #241a14; --cream-deep: #1c130e; --card: #2c2019;
+    --cocoa: #f6e8d8; --cocoa-soft: #c9b4a4;
+    --berry: #e88aa2; --berry-deep: #e2778f; --caramel: #e0a15f;
+    --line: rgba(246, 232, 216, 0.16);
+    --input-bg: #201812; --input-border: rgba(246, 232, 216, 0.32);
+  }
+}
+
+.shop-canvas {
   margin: -20px -24px -60px;              /* sangra até as bordas do main */
   padding: 8px 24px 60px;
   background:
@@ -344,13 +376,33 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 }
 @media (prefers-color-scheme: dark) {
   .shop-canvas {
-    --cream: #241a14; --cream-deep: #1c130e; --card: #2c2019;
-    --cocoa: #f6e8d8; --cocoa-soft: #c9b4a4;
-    --berry: #e88aa2; --berry-deep: #e2778f; --caramel: #e0a15f;
-    --line: rgba(246, 232, 216, 0.14);
     background:
       radial-gradient(120% 80% at 50% -10%, #2c1f17 0%, var(--cream) 50%, var(--cream-deep) 100%);
   }
+}
+
+/* Perfil cliente: a cor quente preenche a tela inteira (fundo + topo),
+   e a vitrine deixa de precisar sangrar. */
+body.role-cliente {
+  background:
+    radial-gradient(130% 85% at 50% -8%, #fdf6ea 0%, var(--cream) 48%, var(--cream-deep) 100%)
+    fixed;
+}
+body.role-cliente .topbar {
+  background: rgba(255, 250, 241, 0.92); border-bottom: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+body.role-cliente .brand h1 { color: var(--cocoa); }
+body.role-cliente .brand p { color: var(--cocoa-soft); }
+body.role-cliente .user-badge { color: var(--cocoa-soft); }
+body.role-cliente .brand-icon { background: var(--card); color: var(--berry); border: 1px solid var(--line); }
+body.role-cliente .btn.ghost { color: var(--cocoa); }
+body.role-cliente .btn.ghost:hover { background: rgba(178, 58, 93, 0.10); }
+body.role-cliente .shop-canvas {
+  margin: 0; padding: 8px 0 40px; background: none;
+}
+@media (prefers-color-scheme: dark) {
+  body.role-cliente .topbar { background: rgba(44, 32, 25, 0.92); }
 }
 
 .shop-hero { text-align: center; padding: 34px 16px 26px; }
@@ -395,12 +447,14 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 }
 .shop-canvas .card h2 { font-family: var(--serif); font-size: 20px; color: var(--cocoa); }
 .shop-canvas .card-sub { color: var(--cocoa-soft); }
-.shop-canvas .field span { color: var(--cocoa-soft); }
-.shop-canvas .field input {
-  background: #fff; border: 1px solid var(--line); color: var(--cocoa);
+.shop-canvas .field span { color: var(--cocoa); font-weight: 500; }
+.shop-canvas .field input { color: var(--cocoa); }
+.shop-canvas .field input:focus {
+  border-color: var(--berry); box-shadow: 0 0 0 3px rgba(178, 58, 93, 0.14);
 }
-.shop-canvas .field input:focus { outline: 2px solid var(--berry); }
+.shop-canvas .money-prefix { color: var(--cocoa-soft); }
 .shop-canvas .pay-methods { border-color: var(--line); }
+.shop-canvas .pay-methods label { color: var(--cocoa); }
 .shop-canvas .pay-methods legend { color: var(--cocoa-soft); }
 .shop-order-card { position: sticky; top: 86px; }
 
@@ -416,14 +470,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 
 /* "Foto" ilustrada do produto */
 .shop-item-photo {
-  position: relative; height: 116px; display: flex; align-items: center; justify-content: center;
-  color: var(--berry);
+  position: relative; height: 128px; display: flex; align-items: center; justify-content: center;
 }
-.shop-item-photo svg { width: 46px; height: 46px; opacity: 0.9; }
+.shop-item-photo svg {
+  width: 96px; height: 96px;
+  filter: drop-shadow(0 4px 8px rgba(64, 42, 31, 0.18));
+}
 .shop-item-photo.tone-0 { background: linear-gradient(135deg, #fbe7d6, #f6d3c4); }
-.shop-item-photo.tone-1 { background: linear-gradient(135deg, #f7e0e6, #f2c9d6); color: var(--berry-deep); }
-.shop-item-photo.tone-2 { background: linear-gradient(135deg, #f6ecd2, #efd9b0); color: var(--caramel); }
-.shop-item-photo.tone-3 { background: linear-gradient(135deg, #eadfd2, #dcc6b2); color: #8a5a3c; }
+.shop-item-photo.tone-1 { background: linear-gradient(135deg, #f7e0e6, #f2c9d6); }
+.shop-item-photo.tone-2 { background: linear-gradient(135deg, #f6ecd2, #efd9b0); }
+.shop-item-photo.tone-3 { background: linear-gradient(135deg, #eadfd2, #dcc6b2); }
+@media (prefers-color-scheme: dark) {
+  .shop-item-photo.tone-0 { background: linear-gradient(135deg, #3a2a20, #33241b); }
+  .shop-item-photo.tone-1 { background: linear-gradient(135deg, #3d2833, #37232c); }
+  .shop-item-photo.tone-2 { background: linear-gradient(135deg, #3a3120, #332a1a); }
+  .shop-item-photo.tone-3 { background: linear-gradient(135deg, #352c24, #2e261f); }
+}
 .shop-item-count {
   position: absolute; top: 8px; right: 8px; min-width: 22px; height: 22px; padding: 0 6px;
   display: inline-flex; align-items: center; justify-content: center;

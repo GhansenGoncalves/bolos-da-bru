@@ -168,8 +168,9 @@
             <div class="field-row">
               <label class="field"><span>Endereço de entrega</span>
                 <input type="text" id="sale-address" maxlength="90" placeholder="Rua, número, bairro"></label>
-              <label class="field fee"><span>Taxa de entrega (R$)</span>
-                <input type="number" id="sale-fee" min="0" step="0.50" value="0"></label>
+              <label class="field fee"><span>Taxa de entrega</span>
+                <div class="money-input"><span class="money-prefix">R$</span>
+                  <input type="text" inputmode="decimal" id="sale-fee" placeholder="0,00"></div></label>
             </div>
             <div class="field-row" id="due-date-row" hidden>
               <label class="field"><span>Data de entrega da encomenda</span>
@@ -255,10 +256,12 @@
             <input type="hidden" id="product-id">
             <label class="field"><span>Nome / sabor</span>
               <input type="text" id="product-name" required maxlength="60" placeholder="Ex.: Ninho com Nutella"></label>
-            <label class="field"><span>Preço de venda (R$)</span>
-              <input type="number" id="product-price" required min="0.01" step="0.01"></label>
-            <label class="field"><span>Custo de produção (R$)</span>
-              <input type="number" id="product-cost" required min="0" step="0.01"></label>
+            <label class="field"><span>Preço de venda</span>
+              <div class="money-input"><span class="money-prefix">R$</span>
+                <input type="text" inputmode="decimal" id="product-price" placeholder="0,00" required></div></label>
+            <label class="field"><span>Custo de produção</span>
+              <div class="money-input"><span class="money-prefix">R$</span>
+                <input type="text" inputmode="decimal" id="product-cost" placeholder="0,00" required></div></label>
             <label class="field"><span>Estoque (potes prontos)</span>
               <input type="number" id="product-stock" required min="0" step="1"></label>
             <div class="form-actions">
@@ -300,7 +303,8 @@
                   <option value="fixed">R$ de desconto</option>
                 </select></label>
               <label class="field"><span>Valor</span>
-                <input type="number" id="promo-value" required min="0.01" step="0.01"></label>
+                <div class="money-input"><span class="money-prefix" id="promo-value-prefix">%</span>
+                  <input type="text" inputmode="decimal" id="promo-value" placeholder="0" required></div></label>
             </div>
             <div class="field-row">
               <label class="field"><span>Início</span>

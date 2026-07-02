@@ -163,7 +163,7 @@
               <label class="field"><span>Cliente</span>
                 <input type="text" id="sale-customer" maxlength="60" placeholder="Nome de quem pediu"></label>
               <label class="field"><span>Telefone / WhatsApp</span>
-                <input type="tel" id="sale-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+                <input type="tel" id="sale-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
             </div>
             <div class="field-row">
               <label class="field"><span>Endereço de entrega</span>
@@ -264,6 +264,12 @@
                 <input type="text" inputmode="decimal" id="product-cost" placeholder="0,00" required></div></label>
             <label class="field"><span>Estoque (potes prontos)</span>
               <input type="number" id="product-stock" required min="0" step="1"></label>
+            <label class="field"><span>Foto do produto (opcional)</span>
+              <input type="file" id="product-image" accept="image/*"></label>
+            <div class="img-preview" id="product-image-preview" hidden>
+              <img id="product-image-thumb" alt="Prévia da foto do produto">
+              <button type="button" class="btn small ghost danger-text" id="btn-remove-image">Remover foto</button>
+            </div>
             <div class="form-actions">
               <button type="submit" class="btn primary">Salvar</button>
               <button type="button" class="btn ghost hidden" id="btn-cancel-edit">Cancelar edição</button>
@@ -390,7 +396,7 @@
             <label class="field"><span>Seu nome</span>
               <input type="text" id="shop-name" maxlength="60" placeholder="Como podemos te chamar?"></label>
             <label class="field"><span>Telefone / WhatsApp</span>
-              <input type="tel" id="shop-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+              <input type="tel" id="shop-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
             <fieldset class="pay-methods">
               <legend>Como quer receber?</legend>
               <label><input type="radio" name="shop-fulfil" value="retirada" checked> Vou retirar</label>
@@ -441,7 +447,7 @@
           <p class="card-sub">Digite o telefone usado no pedido para ver a situação das suas encomendas.</p>
           <div class="shop-track-row">
             <label class="field grow"><span>Telefone / WhatsApp</span>
-              <input type="tel" id="track-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+              <input type="tel" id="track-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
             <button class="btn" id="btn-track">Buscar</button>
           </div>
           <div id="track-result"></div>
@@ -454,7 +460,7 @@
             <label class="field"><span>Seu nome</span>
               <input type="text" id="signup-name" maxlength="60" placeholder="Como podemos te chamar?"></label>
             <label class="field"><span>Telefone / WhatsApp</span>
-              <input type="tel" id="signup-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+              <input type="tel" id="signup-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
             <button type="submit" class="btn shop-submit">Quero receber novidades</button>
           </form>
           <div id="signup-result"></div>

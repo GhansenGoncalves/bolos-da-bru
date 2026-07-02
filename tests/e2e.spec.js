@@ -448,6 +448,14 @@ test.describe("Loja (visão do cliente)", () => {
     await page.click("#signup-form button[type=submit]");
     await expect(page.locator("#signup-result")).toContainText("já está na lista");
   });
+
+  test("máscara de telefone limita ao padrão brasileiro de 11 dígitos", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    // Digita mais dígitos que o padrão; a máscara corta em 11 e formata
+    await page.locator("#shop-phone").pressSequentially("11987654321000000");
+    await expect(page.locator("#shop-phone")).toHaveValue("(11) 98765-4321");
+  });
 });
 
 test.describe("Produtos", () => {
@@ -473,6 +481,30 @@ test.describe("Produtos", () => {
     await page.locator("#products-table tbody tr", { hasText: "Pistache" })
       .getByRole("button", { name: "Excluir" }).click();
     await expect(page.locator("#products-table tbody tr", { hasText: "Pistache" })).toHaveCount(0);
+  });
+
+  test("adiciona foto ao produto e ela aparece no catálogo e na loja", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "produtos");
+    await page.fill("#product-name", "Bolo com Foto");
+    await page.fill("#product-price", "1500");
+    await page.fill("#product-cost", "500");
+    await page.fill("#product-stock", "5");
+
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64");
+    await page.setInputFiles("#product-image",
+      { name: "bolo.png", mimeType: "image/png", buffer: png });
+    await expect(page.locator("#product-image-preview")).toBeVisible();
+
+    await page.click('#product-form button[type="submit"]');
+    const row = page.locator("#products-table tbody tr", { hasText: "Bolo com Foto" });
+    await expect(row.locator(".cat-thumb img")).toBeVisible();
+
+    await goTo(page, "loja");
+    await expect(page.locator(".shop-item", { hasText: "Bolo com Foto" })
+      .locator(".shop-photo-img")).toBeVisible();
   });
 
   test("sinaliza estoque esgotado e baixo no catálogo", async ({ page }) => {

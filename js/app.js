@@ -137,6 +137,28 @@ function productArtwork(name) {
     new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true);
 }
 
+/* Redimensiona e comprime uma foto enviada, para caber no localStorage.
+   Reduz para no máximo `maxDim` px no maior lado e exporta como JPEG. */
+function processImage(file, maxDim, cb) {
+  const reader = new FileReader();
+  reader.onerror = () => cb(null);
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => cb(null);
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      try { cb(canvas.toDataURL("image/jpeg", 0.82)); } catch { cb(null); }
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 /* ---------- Máscara de moeda (Real brasileiro) ----------
    Trata o que é digitado como centavos: "1500" vira "15,00". Todos os campos
    R$ usam type="text" e são lidos por readMoney(). */
@@ -165,6 +187,20 @@ function attachMoneyMask(input) {
   input.addEventListener("blur", () => {
     if (input.dataset.money !== "off" && input.value) input.value = formatMoneyDigits(input.value);
   });
+}
+
+/* ---------- Máscara de telefone (padrão brasileiro, 10 ou 11 dígitos) ----------
+   Formata como (XX) XXXXX-XXXX e limita a 11 dígitos (DDD + número). */
+function formatPhone(raw) {
+  const d = String(raw).replace(/\D/g, "").slice(0, 11);
+  if (!d) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+function attachPhoneMask(input) {
+  input.addEventListener("input", () => { input.value = formatPhone(input.value); });
 }
 
 let toastTimer = null;
@@ -203,9 +239,11 @@ const db = {
 
 function saveDB() {
   // Em ambientes que bloqueiam localStorage (sandbox), o app segue em memória.
+  // Retorna false se não persistiu (ex.: cota cheia por muitas fotos).
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(db));
-  } catch { /* sem persistência */ }
+    return true;
+  } catch { return false; }
 }
 
 function loadDB() {
@@ -444,6 +482,7 @@ const state = {
   shopCart: [],      // carrinho da loja (cliente): [{productId, qty}]
   editingProductId: null,
   editingPromoId: null,
+  productImage: null, // foto pendente no formulário de produto (data URI ou null)
 };
 
 /* ---------- Tooltip compartilhado ---------- */
@@ -1224,8 +1263,13 @@ function renderProductsTable() {
   }
   for (const p of [...db.products].sort((a, b) => a.name.localeCompare(b.name))) {
     const margin = p.price > 0 ? ((p.price - p.cost) / p.price) * 100 : 0;
+    const nameCell = el("td", {}, el("span", { class: "cat-name" }, [
+      el("span", { class: "cat-thumb" + (p.image ? "" : " empty") },
+        p.image ? el("img", { src: p.image, alt: "" }) : icon("cupcake")),
+      p.name,
+    ]));
     tbody.append(el("tr", {}, [
-      el("td", {}, p.name),
+      nameCell,
       el("td", { class: "num" }, fmtMoney(p.price)),
       el("td", { class: "num" }, fmtMoney(p.cost)),
       el("td", { class: "num" }, margin.toFixed(0) + "%"),
@@ -1240,25 +1284,43 @@ function renderProductsTable() {
   }
 }
 
+/* Mostra (ou esconde) a prévia da foto do produto no formulário. */
+function updateProductImagePreview() {
+  const preview = document.getElementById("product-image-preview");
+  const thumb = document.getElementById("product-image-thumb");
+  if (state.productImage) {
+    thumb.src = state.productImage;
+    preview.hidden = false;
+  } else {
+    thumb.removeAttribute("src");
+    preview.hidden = true;
+  }
+}
+
 function startEditProduct(id) {
   const p = db.products.find((x) => x.id === id);
   if (!p) return;
   state.editingProductId = id;
+  state.productImage = p.image || null;
   document.getElementById("product-form-title").textContent = "Editar produto";
   document.getElementById("product-id").value = id;
   document.getElementById("product-name").value = p.name;
   setMoney(document.getElementById("product-price"), p.price);
   setMoney(document.getElementById("product-cost"), p.cost);
   document.getElementById("product-stock").value = p.stock;
+  document.getElementById("product-image").value = "";
+  updateProductImagePreview();
   document.getElementById("btn-cancel-edit").classList.remove("hidden");
   document.getElementById("product-name").focus();
 }
 
 function resetProductForm() {
   state.editingProductId = null;
+  state.productImage = null;
   document.getElementById("product-form").reset();
   document.getElementById("product-form-title").textContent = "Novo produto";
   document.getElementById("btn-cancel-edit").classList.add("hidden");
+  updateProductImagePreview();
 }
 
 function submitProductForm(ev) {
@@ -1270,15 +1332,18 @@ function submitProductForm(ev) {
   if (!name || !(price > 0) || cost < 0) { toast("Preencha os campos corretamente."); return; }
   if (cost >= price) toast("Atenção: custo maior ou igual ao preço — margem zero ou negativa.");
 
+  const image = state.productImage || null;
   if (state.editingProductId) {
     const p = db.products.find((x) => x.id === state.editingProductId);
-    Object.assign(p, { name, price, cost, stock });
+    Object.assign(p, { name, price, cost, stock, image });
     toast(`Produto "${name}" atualizado.`);
   } else {
-    db.products.push({ id: uid(), name, price, cost, stock });
+    db.products.push({ id: uid(), name, price, cost, stock, image });
     toast(`Produto "${name}" cadastrado.`);
   }
-  saveDB();
+  if (!saveDB()) {
+    toast("Foto grande demais para o armazenamento do navegador. Tente uma imagem menor.");
+  }
   resetProductForm();
   renderAll();
 }
@@ -1663,7 +1728,13 @@ function renderShop() {
     const qty = qtyOf(p.id);
     // "Foto" ilustrada: enquanto não há imagem real, um selo com o ícone do
     // produto (alterna bolo/cupcake) dá cara de cardápio de confeitaria.
-    const photo = el("div", { class: `shop-item-photo tone-${idx % 4}` }, productArtwork(p.name));
+    // Foto real quando cadastrada; senão, a ilustração de bolo no pote.
+    const media = p.image
+      ? el("img", { class: "shop-photo-img", src: p.image, alt: p.name, loading: "lazy" })
+      : productArtwork(p.name);
+    const photo = el("div", {
+      class: `shop-item-photo tone-${idx % 4}${p.image ? " has-img" : ""}`,
+    }, media);
     if (qty > 0) photo.append(el("span", { class: "shop-item-count" }, fmtInt(qty)));
     grid.append(el("div", { class: "shop-item" + (qty > 0 ? " in-cart" : "") }, [
       photo,
@@ -1980,6 +2051,20 @@ function bindEvents() {
 
   document.getElementById("product-form").addEventListener("submit", submitProductForm);
   document.getElementById("btn-cancel-edit").addEventListener("click", resetProductForm);
+  document.getElementById("product-image").addEventListener("change", (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    processImage(file, 640, (dataUrl) => {
+      if (!dataUrl) { toast("Não foi possível ler essa imagem."); return; }
+      state.productImage = dataUrl;
+      updateProductImagePreview();
+    });
+  });
+  document.getElementById("btn-remove-image").addEventListener("click", () => {
+    state.productImage = null;
+    document.getElementById("product-image").value = "";
+    updateProductImagePreview();
+  });
 
   document.getElementById("promo-form").addEventListener("submit", submitPromoForm);
   document.getElementById("btn-cancel-promo-edit").addEventListener("click", resetPromoForm);
@@ -1988,6 +2073,10 @@ function bindEvents() {
   // Máscara de moeda (Real) nos campos de valor
   ["product-price", "product-cost", "sale-fee", "promo-value"].forEach((id) => {
     attachMoneyMask(document.getElementById(id));
+  });
+  // Máscara de telefone (padrão brasileiro) nos campos de contato
+  ["sale-phone", "shop-phone", "track-phone", "signup-phone"].forEach((id) => {
+    attachPhoneMask(document.getElementById(id));
   });
 
   const loadDemo = (needsConfirm) => {

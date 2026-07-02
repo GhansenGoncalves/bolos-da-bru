@@ -621,3 +621,29 @@ body.role-cliente .shop-canvas {
 .user-area { display: flex; align-items: center; gap: 10px; }
 .user-badge { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
 body.role-cliente .tabs { display: none; }
+
+/* ===== Foto do produto ===== */
+.img-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.img-preview img {
+  width: 64px; height: 64px; object-fit: cover; border-radius: 10px;
+  border: 1px solid var(--input-border);
+}
+.field input[type="file"] { padding: 7px 9px; font-size: 13px; }
+.field input[type="file"]::file-selector-button {
+  font: inherit; font-size: 12.5px; margin-right: 10px; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+.cat-name { display: inline-flex; align-items: center; gap: 9px; }
+.cat-thumb {
+  width: 34px; height: 34px; border-radius: 8px; flex: none; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+}
+.cat-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cat-thumb.empty { background: var(--accent-wash); color: var(--series-1); }
+.cat-thumb.empty svg { width: 18px; height: 18px; }
+
+/* Foto real ocupa toda a área do card da loja */
+.shop-item-photo.has-img { padding: 0; }
+.shop-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }

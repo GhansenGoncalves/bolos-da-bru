@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Bolos da Bru — sistema de gestão de vendas de bolo no pote: dashboard, balcão, delivery, encomendas, promoções e dicas.">
+  <meta name="theme-color" content="#2a78d6">
+  <title>Bolos da Bru · Bolo no Pote</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B0%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">🍰</span>
+      <div>
+        <h1>Bolos da Bru</h1>
+        <p>Bolo no pote · balcão, delivery e encomendas</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Seções do sistema">
+      <button class="tab active" role="tab" aria-selected="true" data-view="dashboard">Dashboard</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="vendas">Vendas</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="produtos">Produtos</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="promocoes">Promoções</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="dicas">Dicas</button>
+      <button class="tab tab-shop" role="tab" aria-selected="false" data-view="loja">🛍 Loja</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============ DASHBOARD ============ -->
+    <section id="view-dashboard" class="view active" role="tabpanel">
+      <div id="welcome-banner" class="card welcome" hidden>
+        <h2>Vamos começar?</h2>
+        <p>Cadastre seus sabores com preço, custo e estoque — o resto do sistema se monta sozinho a partir das suas vendas. Se quiser ver como tudo funciona primeiro, carregue dados de exemplo (dá para apagar depois, na aba Dicas).</p>
+        <div class="welcome-actions">
+          <button class="btn primary" id="btn-goto-products">Cadastrar meus produtos</button>
+          <button class="btn" id="btn-load-demo">Carregar dados de exemplo</button>
+        </div>
+      </div>
+
+      <div class="filter-row" id="range-filters" aria-label="Período">
+        <span class="filter-label">Período:</span>
+        <button class="chip" data-days="1">Hoje</button>
+        <button class="chip" data-days="7">7 dias</button>
+        <button class="chip active" data-days="30">30 dias</button>
+        <button class="chip" data-days="90">90 dias</button>
+        <button class="chip" data-days="0">Tudo</button>
+      </div>
+
+      <div class="kpi-row" id="kpi-row"></div>
+
+      <div class="grid-2">
+        <article class="card">
+          <h2>Receita por dia</h2>
+          <p class="card-sub" id="revenue-chart-sub"></p>
+          <div class="chart-wrap" id="revenue-chart"></div>
+          <details class="table-toggle">
+            <summary>Ver dados em tabela</summary>
+            <div class="mini-table-wrap" id="revenue-table"></div>
+          </details>
+        </article>
+
+        <article class="card">
+          <h2>Top produtos por receita</h2>
+          <p class="card-sub" id="top-products-sub"></p>
+          <div id="top-products-chart" class="hbar-chart"></div>
+          <details class="table-toggle">
+            <summary>Ver dados em tabela</summary>
+            <div class="mini-table-wrap" id="top-products-table"></div>
+          </details>
+        </article>
+
+        <article class="card">
+          <h2>Vendas por dia da semana</h2>
+          <p class="card-sub">Total de potes vendidos no período</p>
+          <div id="weekday-chart" class="col-chart"></div>
+          <details class="table-toggle">
+            <summary>Ver dados em tabela</summary>
+            <div class="mini-table-wrap" id="weekday-table"></div>
+          </details>
+        </article>
+
+        <article class="card">
+          <h2>Formas de pagamento</h2>
+          <p class="card-sub">Participação na receita do período</p>
+          <div id="payment-chart"></div>
+          <details class="table-toggle">
+            <summary>Ver dados em tabela</summary>
+            <div class="mini-table-wrap" id="payment-table"></div>
+          </details>
+        </article>
+
+        <article class="card">
+          <h2>Canais de venda</h2>
+          <p class="card-sub">Participação na receita do período: balcão, delivery e encomendas</p>
+          <div id="channel-chart"></div>
+          <details class="table-toggle">
+            <summary>Ver dados em tabela</summary>
+            <div class="mini-table-wrap" id="channel-table"></div>
+          </details>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ VENDAS ============ -->
+    <section id="view-vendas" class="view" role="tabpanel">
+      <div class="grid-sale">
+        <article class="card">
+          <h2>Nova venda</h2>
+          <fieldset class="pay-methods channel-set">
+            <legend>Canal</legend>
+            <label><input type="radio" name="channel" value="balcao" checked> Balcão</label>
+            <label><input type="radio" name="channel" value="delivery"> Delivery</label>
+            <label><input type="radio" name="channel" value="encomenda"> Encomenda</label>
+          </fieldset>
+
+          <div id="customer-fields" hidden>
+            <div class="field-row">
+              <label class="field"><span>Cliente</span>
+                <input type="text" id="sale-customer" maxlength="60" placeholder="Nome de quem pediu"></label>
+              <label class="field"><span>Telefone / WhatsApp</span>
+                <input type="tel" id="sale-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>Endereço de entrega</span>
+                <input type="text" id="sale-address" maxlength="90" placeholder="Rua, número, bairro"></label>
+              <label class="field fee"><span>Taxa de entrega (R$)</span>
+                <input type="number" id="sale-fee" min="0" step="0.50" value="0"></label>
+            </div>
+            <div class="field-row" id="due-date-row" hidden>
+              <label class="field"><span>Data de entrega da encomenda</span>
+                <input type="date" id="sale-due-date"></label>
+            </div>
+          </div>
+
+          <div class="sale-add-row">
+            <label class="field grow">
+              <span>Produto</span>
+              <select id="sale-product"></select>
+            </label>
+            <label class="field qty">
+              <span>Qtd.</span>
+              <input type="number" id="sale-qty" min="1" value="1">
+            </label>
+            <button class="btn" id="btn-add-cart">Adicionar</button>
+          </div>
+
+          <div id="cart-area">
+            <table class="table" id="cart-table">
+              <thead>
+                <tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Desconto</th><th class="num">Subtotal</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <p class="empty-msg" id="cart-empty">Nenhum item no carrinho.</p>
+          </div>
+
+          <div class="sale-footer">
+            <fieldset class="pay-methods">
+              <legend>Pagamento</legend>
+              <label><input type="radio" name="payment" value="Pix" checked> Pix</label>
+              <label><input type="radio" name="payment" value="Cartão"> Cartão</label>
+              <label><input type="radio" name="payment" value="Dinheiro"> Dinheiro</label>
+            </fieldset>
+            <div class="sale-totals">
+              <div class="line"><span>Subtotal</span><strong id="cart-subtotal">R$ 0,00</strong></div>
+              <div class="line discount"><span>Descontos</span><strong id="cart-discount">R$ 0,00</strong></div>
+              <div class="line" id="fee-line" hidden><span>Taxa de entrega</span><strong id="cart-fee">R$ 0,00</strong></div>
+              <div class="line total"><span>Total</span><strong id="cart-total">R$ 0,00</strong></div>
+              <button class="btn primary" id="btn-confirm-sale" disabled>Confirmar venda</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Histórico de vendas</h2>
+          <div class="card-actions">
+            <button class="btn ghost" id="btn-export-csv">Exportar CSV</button>
+          </div>
+          <div class="table-scroll">
+            <table class="table" id="sales-table">
+              <thead>
+                <tr><th>Data</th><th>Canal</th><th>Itens</th><th>Pagamento</th><th class="num">Total</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <h2>Encomendas abertas</h2>
+        <p class="card-sub">Pedidos para produzir e entregar. Ao concluir, a encomenda entra na receita do dia da entrega.</p>
+        <div class="table-scroll">
+          <table class="table" id="orders-table">
+            <thead>
+              <tr><th>Entrega</th><th>Cliente</th><th>Itens</th><th>Contato / endereço</th><th class="num">Valor</th><th>Situação</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============ PRODUTOS ============ -->
+    <section id="view-produtos" class="view" role="tabpanel">
+      <div class="grid-side">
+        <article class="card">
+          <h2 id="product-form-title">Novo produto</h2>
+          <form id="product-form">
+            <input type="hidden" id="product-id">
+            <label class="field"><span>Nome / sabor</span>
+              <input type="text" id="product-name" required maxlength="60" placeholder="Ex.: Ninho com Nutella"></label>
+            <label class="field"><span>Preço de venda (R$)</span>
+              <input type="number" id="product-price" required min="0.01" step="0.01"></label>
+            <label class="field"><span>Custo de produção (R$)</span>
+              <input type="number" id="product-cost" required min="0" step="0.01"></label>
+            <label class="field"><span>Estoque (potes prontos)</span>
+              <input type="number" id="product-stock" required min="0" step="1"></label>
+            <div class="form-actions">
+              <button type="submit" class="btn primary">Salvar</button>
+              <button type="button" class="btn ghost hidden" id="btn-cancel-edit">Cancelar edição</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Catálogo</h2>
+          <div class="table-scroll">
+            <table class="table" id="products-table">
+              <thead>
+                <tr><th>Produto</th><th class="num">Preço</th><th class="num">Custo</th><th class="num">Margem</th><th class="num">Estoque</th><th class="num">Vend. 30d</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ PROMOÇÕES ============ -->
+    <section id="view-promocoes" class="view" role="tabpanel">
+      <div class="grid-side">
+        <article class="card">
+          <h2 id="promo-form-title">Nova promoção</h2>
+          <form id="promo-form">
+            <input type="hidden" id="promo-id">
+            <label class="field"><span>Nome da promoção</span>
+              <input type="text" id="promo-name" required maxlength="60" placeholder="Ex.: Semana do Chocolate"></label>
+            <label class="field"><span>Produto</span>
+              <select id="promo-product"></select></label>
+            <div class="field-row">
+              <label class="field"><span>Tipo</span>
+                <select id="promo-type">
+                  <option value="percent">% de desconto</option>
+                  <option value="fixed">R$ de desconto</option>
+                </select></label>
+              <label class="field"><span>Valor</span>
+                <input type="number" id="promo-value" required min="0.01" step="0.01"></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>Início</span>
+                <input type="date" id="promo-start" required></label>
+              <label class="field"><span>Fim</span>
+                <input type="date" id="promo-end" required></label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn primary">Salvar</button>
+              <button type="button" class="btn ghost hidden" id="btn-cancel-promo-edit">Cancelar edição</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Promoções cadastradas</h2>
+          <p class="card-sub">Promoções ativas são aplicadas automaticamente no carrinho.</p>
+          <div class="table-scroll">
+            <table class="table" id="promos-table">
+              <thead>
+                <tr><th>Promoção</th><th>Produto</th><th class="num">Desconto</th><th>Vigência</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ DICAS ============ -->
+    <section id="view-dicas" class="view" role="tabpanel">
+      <article class="card">
+        <h2>Dicas para o seu negócio</h2>
+        <p class="card-sub">Geradas automaticamente a partir dos seus dados de vendas, estoque e promoções.</p>
+        <div id="tips-list" class="tips-list"></div>
+      </article>
+      <article class="card">
+        <h2>Como evoluir o sistema</h2>
+        <p class="card-sub">Próximos passos sugeridos para profissionalizar a operação.</p>
+        <div id="roadmap-list" class="tips-list"></div>
+      </article>
+      <article class="card">
+        <h2>Configurações da loja</h2>
+        <label class="field"><span>WhatsApp da loja (com código do país e DDD, só números)</span>
+          <input type="tel" id="cfg-whatsapp" maxlength="15" placeholder="5511999998888"></label>
+        <button class="btn primary" id="btn-save-config">Salvar configurações</button>
+        <p class="card-sub" style="margin-top:10px">Com o número salvo, o botão "Enviar resumo no WhatsApp" da Loja manda o pedido do cliente direto para você — é assim que pedidos feitos no celular do cliente chegam até a sua loja.</p>
+      </article>
+
+      <article class="card danger-zone">
+        <h2>Dados</h2>
+        <p class="card-sub">Os dados ficam salvos apenas neste navegador (localStorage). Exporte o CSV de vendas com frequência como backup.</p>
+        <button class="btn ghost" id="btn-reset-demo">Carregar dados de exemplo</button>
+        <button class="btn ghost" id="btn-clear-data">Começar do zero (apagar tudo)</button>
+      </article>
+    </section>
+    <!-- ============ LOJA (visão do cliente) ============ -->
+    <section id="view-loja" class="view" role="tabpanel">
+      <div class="shop-hero">
+        <h2>🍰 Bolos da Bru</h2>
+        <p>Bolo no pote feito em casa, com carinho. Monte seu pedido: retire com a gente ou receba em casa.</p>
+      </div>
+
+      <div class="grid-side shop-layout">
+        <article class="card shop-order-card">
+          <h2>Seu pedido</h2>
+          <div id="shop-cart"></div>
+          <div class="line total shop-total"><span>Total</span><strong id="shop-total">R$ 0,00</strong></div>
+          <form id="shop-form">
+            <label class="field"><span>Seu nome</span>
+              <input type="text" id="shop-name" maxlength="60" placeholder="Como podemos te chamar?"></label>
+            <label class="field"><span>Telefone / WhatsApp</span>
+              <input type="tel" id="shop-phone" maxlength="20" placeholder="(00) 00000-0000"></label>
+            <fieldset class="pay-methods">
+              <legend>Como quer receber?</legend>
+              <label><input type="radio" name="shop-fulfil" value="retirada" checked> Vou retirar</label>
+              <label><input type="radio" name="shop-fulfil" value="entrega"> Quero entrega</label>
+            </fieldset>
+            <label class="field" id="shop-address-field" hidden><span>Endereço de entrega</span>
+              <input type="text" id="shop-address" maxlength="90" placeholder="Rua, número, bairro"></label>
+            <label class="field"><span>Para quando?</span>
+              <input type="date" id="shop-date"></label>
+            <button type="submit" class="btn primary shop-submit">Enviar pedido</button>
+            <p class="card-sub shop-note">A taxa de entrega e o pagamento são combinados na confirmação do pedido.</p>
+          </form>
+          <div id="shop-confirmation" hidden></div>
+        </article>
+
+        <article class="card">
+          <h2>Cardápio</h2>
+          <p class="card-sub">Sabores esgotados podem ser encomendados — a gente produz para a sua data.</p>
+          <div id="shop-grid" class="shop-grid"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="status" hidden></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

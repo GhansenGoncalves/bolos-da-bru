@@ -392,6 +392,7 @@ test.describe("Loja (visão do cliente)", () => {
     await page.fill("#shop-address", "Av. Brasil, 100 — Jardim América");
     // O cliente escolhe como quer pagar
     await page.check('input[name="shop-payment"][value="Dinheiro"]');
+    await page.check("#shop-consent");
     await page.click(".shop-submit");
 
     await expect(page.locator("#shop-confirmation")).toContainText("Pedido enviado!");
@@ -421,6 +422,7 @@ test.describe("Loja (visão do cliente)", () => {
     await page.fill("#shop-name", "Cliente Pix");
     await page.fill("#shop-phone", "(11) 93333-2222");
     await page.check('input[name="shop-payment"][value="Pix"]');
+    await page.check("#shop-consent");
     await page.click(".shop-submit");
 
     // A confirmação mostra a chave Pix e o recebedor
@@ -446,6 +448,7 @@ test.describe("Loja (visão do cliente)", () => {
     await goTo(page, "loja");
     await page.locator(".shop-item", { hasText: "Prestígio" })
       .getByRole("button", { name: /Adicionar um pote/ }).click();
+    await page.check("#shop-consent");
     await page.click(".shop-submit");
     await expect(page.locator("#toast")).toContainText("Informe seu nome e telefone");
   });
@@ -465,6 +468,7 @@ test.describe("Loja (visão do cliente)", () => {
       .getByRole("button", { name: /Adicionar um pote/ }).click();
     await page.fill("#shop-name", "Cliente Rastreio");
     await page.fill("#shop-phone", "(11) 91111-2222");
+    await page.check("#shop-consent");
     await page.click(".shop-submit");
     await expect(page.locator("#shop-confirmation")).toContainText("Pedido enviado!");
 
@@ -487,12 +491,14 @@ test.describe("Loja (visão do cliente)", () => {
     await goTo(page, "loja");
     await page.fill("#signup-name", "Novo Contato");
     await page.fill("#signup-phone", "(11) 93333-4444");
+    await page.check("#signup-consent");
     await page.click("#signup-form button[type=submit]");
     await expect(page.locator("#signup-result")).toContainText("Cadastro feito!");
 
     // Mesmo telefone novamente → reconhece que já está na lista
     await page.fill("#signup-name", "Novo Contato");
     await page.fill("#signup-phone", "11933334444");
+    await page.check("#signup-consent");
     await page.click("#signup-form button[type=submit]");
     await expect(page.locator("#signup-result")).toContainText("já está na lista");
   });
@@ -503,6 +509,51 @@ test.describe("Loja (visão do cliente)", () => {
     // Digita mais dígitos que o padrão; a máscara corta em 11 e formata
     await page.locator("#shop-phone").pressSequentially("11987654321000000");
     await expect(page.locator("#shop-phone")).toHaveValue("(11) 98765-4321");
+  });
+
+  test("pedido exige o aceite da Política de Privacidade (LGPD)", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    await page.locator(".shop-item", { hasText: "Prestígio" })
+      .getByRole("button", { name: /Adicionar um pote/ }).click();
+    await page.fill("#shop-name", "Sem Consentimento");
+    await page.fill("#shop-phone", "(11) 90000-1111");
+    // Sem marcar o consentimento, o envio é bloqueado
+    await page.click(".shop-submit");
+    await expect(page.locator("#toast")).toContainText("aceite da Política de Privacidade");
+    await expect(page.locator("#shop-confirmation")).toBeHidden();
+  });
+
+  test("cardápio mostra ingredientes, alérgenos e validade", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    const card = page.locator(".shop-item", { hasText: "Ninho com Nutella" });
+    await card.locator("summary", { hasText: "Ingredientes e validade" }).click();
+    await expect(card).toContainText("Contém:");
+    await expect(card).toContainText("avelã");
+    await expect(card).toContainText("Validade:");
+  });
+
+  test("rodapé mostra os dados do vendedor e abre as políticas", async ({ page }) => {
+    await openApp(page);
+    // Admin cadastra os dados legais
+    await goTo(page, "dicas");
+    await page.fill("#cfg-store-name", "Bruna Confeitaria ME");
+    await page.fill("#cfg-cnpj", "12.345.678/0001-99");
+    await page.fill("#cfg-city", "São Paulo / SP");
+    await page.click("#btn-save-config");
+
+    await goTo(page, "loja");
+    const footer = page.locator("#shop-footer");
+    await expect(footer).toContainText("Bruna Confeitaria ME");
+    await expect(footer).toContainText("12.345.678/0001-99");
+    // Abre a Política de Privacidade no modal
+    await footer.getByRole("button", { name: "Política de Privacidade" }).click();
+    await expect(page.locator("#policy-modal")).toBeVisible();
+    await expect(page.locator("#policy-title")).toHaveText("Política de Privacidade");
+    await expect(page.locator("#policy-body")).toContainText("LGPD");
+    await page.click("#policy-close");
+    await expect(page.locator("#policy-modal")).toBeHidden();
   });
 });
 
@@ -643,6 +694,7 @@ test.describe("Dicas e dados", () => {
       .getByRole("button", { name: /Adicionar um pote/ }).click();
     await page.fill("#shop-name", "Cliente WhatsApp");
     await page.fill("#shop-phone", "(11) 90000-0000");
+    await page.check("#shop-consent");
     await page.click(".shop-submit");
     await expect(page.locator("#shop-confirmation a"))
       .toHaveAttribute("href", /wa\.me\/5511999998888/);

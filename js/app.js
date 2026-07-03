@@ -234,7 +234,15 @@ const db = {
   sales: [],
   promos: [],
   subscribers: [],
-  settings: { whatsapp: "", pixKey: "", pixName: "" },
+  settings: {
+    whatsapp: "", pixKey: "", pixName: "",
+    storeName: "", cnpj: "", city: "", instagram: "", email: "",
+  },
+};
+
+const DEFAULT_SETTINGS = {
+  whatsapp: "", pixKey: "", pixName: "",
+  storeName: "", cnpj: "", city: "", instagram: "", email: "",
 };
 
 function saveDB() {
@@ -260,7 +268,7 @@ function loadDB() {
     db.sales = data.sales || [];
     db.promos = data.promos || [];
     db.subscribers = data.subscribers || [];
-    db.settings = Object.assign({ whatsapp: "", pixKey: "", pixName: "" }, data.settings);
+    db.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
   } catch { /* dados corrompidos: recomeça vazio */ }
 }
 
@@ -275,13 +283,14 @@ function seedDemoData() {
     return seed / 2147483648;
   };
 
+  const dias5 = "5 dias refrigerado";
   db.products = [
-    { id: "p1", name: "Chocolate com Morango", price: 15.0, cost: 6.5, stock: 14 },
-    { id: "p2", name: "Ninho com Nutella",     price: 17.0, cost: 8.0, stock: 9 },
-    { id: "p3", name: "Prestígio",             price: 14.0, cost: 5.8, stock: 3 },
-    { id: "p4", name: "Cenoura com Chocolate", price: 13.0, cost: 5.0, stock: 18 },
-    { id: "p5", name: "Maracujá",              price: 14.0, cost: 5.5, stock: 0 },
-    { id: "p6", name: "Red Velvet",            price: 18.0, cost: 9.8, stock: 7 },
+    { id: "p1", name: "Chocolate com Morango", price: 15.0, cost: 6.5, stock: 14, description: "Massa de chocolate, brigadeiro cremoso e morangos frescos.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
+    { id: "p2", name: "Ninho com Nutella",     price: 17.0, cost: 8.0, stock: 9, description: "Creme de leite Ninho com camadas de Nutella e massa branca.", allergens: "leite, glúten, ovos, avelã", shelfLife: dias5 },
+    { id: "p3", name: "Prestígio",             price: 14.0, cost: 5.8, stock: 3, description: "Massa de chocolate com recheio cremoso de coco.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
+    { id: "p4", name: "Cenoura com Chocolate", price: 13.0, cost: 5.0, stock: 18, description: "Massa de cenoura com brigadeiro de chocolate.", allergens: "glúten, ovos, leite", shelfLife: dias5 },
+    { id: "p5", name: "Maracujá",              price: 14.0, cost: 5.5, stock: 0, description: "Massa branca com mousse de maracujá.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
+    { id: "p6", name: "Red Velvet",            price: 18.0, cost: 9.8, stock: 7, description: "Massa red velvet com cream cheese.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
   ];
 
   const today = todayISO();
@@ -1338,6 +1347,9 @@ function startEditProduct(id) {
   setMoney(document.getElementById("product-price"), p.price);
   setMoney(document.getElementById("product-cost"), p.cost);
   document.getElementById("product-stock").value = p.stock;
+  document.getElementById("product-description").value = p.description || "";
+  document.getElementById("product-allergens").value = p.allergens || "";
+  document.getElementById("product-shelf").value = p.shelfLife || "";
   document.getElementById("product-image").value = "";
   updateProductImagePreview();
   document.getElementById("btn-cancel-edit").classList.remove("hidden");
@@ -1359,16 +1371,19 @@ function submitProductForm(ev) {
   const price = readMoney(document.getElementById("product-price"));
   const cost = readMoney(document.getElementById("product-cost"));
   const stock = Math.max(0, Math.floor(Number(document.getElementById("product-stock").value)));
+  const description = document.getElementById("product-description").value.trim();
+  const allergens = document.getElementById("product-allergens").value.trim();
+  const shelfLife = document.getElementById("product-shelf").value.trim();
   if (!name || !(price > 0) || cost < 0) { toast("Preencha os campos corretamente."); return; }
   if (cost >= price) toast("Atenção: custo maior ou igual ao preço — margem zero ou negativa.");
 
   const image = state.productImage || null;
   if (state.editingProductId) {
     const p = db.products.find((x) => x.id === state.editingProductId);
-    Object.assign(p, { name, price, cost, stock, image });
+    Object.assign(p, { name, price, cost, stock, image, description, allergens, shelfLife });
     toast(`Produto "${name}" atualizado.`);
   } else {
-    db.products.push({ id: uid(), name, price, cost, stock, image });
+    db.products.push({ id: uid(), name, price, cost, stock, image, description, allergens, shelfLife });
     toast(`Produto "${name}" cadastrado.`);
   }
   if (!saveDB()) {
@@ -1766,6 +1781,17 @@ function renderShop() {
       class: `shop-item-photo tone-${idx % 4}${p.image ? " has-img" : ""}`,
     }, media);
     if (qty > 0) photo.append(el("span", { class: "shop-item-count" }, fmtInt(qty)));
+    // Rotulagem (ingredientes/alérgenos/validade) num expansível, quando houver.
+    let details = null;
+    if (p.description || p.allergens || p.shelfLife) {
+      const dl = el("div", { class: "shop-details-body" });
+      if (p.description) dl.append(el("p", {}, p.description));
+      if (p.allergens) dl.append(el("p", { class: "allergens" }, [el("strong", {}, "Contém: "), p.allergens]));
+      if (p.shelfLife) dl.append(el("p", { class: "shelf" }, [el("strong", {}, "Validade: "), p.shelfLife]));
+      details = el("details", { class: "shop-details" }, [
+        el("summary", {}, "Ingredientes e validade"), dl,
+      ]);
+    }
     grid.append(el("div", { class: "shop-item" + (qty > 0 ? " in-cart" : "") }, [
       photo,
       el("div", { class: "shop-item-body" }, [
@@ -1775,6 +1801,7 @@ function renderShop() {
           p.stock > 0
             ? el("span", { class: "badge good" }, "pronta entrega")
             : el("span", { class: "badge neutral" }, "sob encomenda"),
+          details,
         ]),
         el("div", { class: "shop-stepper" }, [
           el("button", {
@@ -1823,6 +1850,9 @@ function submitShopOrder(ev) {
   if (!name || !phone) { toast("Informe seu nome e telefone para combinarmos a entrega."); return; }
   if (wantsDelivery && !address) { toast("Informe o endereço de entrega."); return; }
   if (!dueDate || dueDate < todayISO()) { toast("Escolha uma data válida para o pedido."); return; }
+  if (!document.getElementById("shop-consent").checked) {
+    toast("Marque o aceite da Política de Privacidade para enviar o pedido."); return;
+  }
 
   const payment = document.querySelector('input[name="shop-payment"]:checked').value;
   const now = new Date();
@@ -2028,6 +2058,9 @@ function submitSignup(ev) {
   if (!name || onlyDigits(phone).length < 8) {
     toast("Informe seu nome e um telefone válido com DDD."); return;
   }
+  if (!document.getElementById("signup-consent").checked) {
+    toast("Marque o aceite da Política de Privacidade para se cadastrar."); return;
+  }
   const digits = onlyDigits(phone);
   const already = db.subscribers.some((s) => onlyDigits(s.phone) === digits);
   if (!already) db.subscribers.push({ id: uid(), name, phone, since: todayISO() });
@@ -2045,6 +2078,116 @@ function submitSignup(ev) {
   ]));
   toast(already ? "Esse contato já estava cadastrado." : "Cadastro realizado com sucesso!");
 }
+
+/* ---------- Rodapé legal e políticas da loja ---------- */
+
+/* Rodapé com os dados do vendedor (CDC) e links de políticas/contato. */
+function renderShopFooter() {
+  const footer = document.getElementById("shop-footer");
+  if (!footer) return;
+  footer.textContent = "";
+  const s = db.settings;
+  const store = s.storeName || "Bolos da Bru";
+
+  const identity = el("div", { class: "footer-identity" }, [
+    el("strong", {}, store),
+  ]);
+  const lineParts = [s.cnpj && `CNPJ/CPF ${s.cnpj}`, s.city].filter(Boolean).join(" · ");
+  if (lineParts) identity.append(el("span", {}, lineParts));
+  if (!s.cnpj) {
+    identity.append(el("span", { class: "footer-warn" }, "⚠ Cadastre os dados do vendedor em Configurações antes de publicar."));
+  }
+
+  const contacts = el("div", { class: "footer-contacts" });
+  if (s.whatsapp) contacts.append(el("a", { href: `https://wa.me/${s.whatsapp}`, target: "_blank", rel: "noopener" }, "WhatsApp"));
+  if (s.instagram) {
+    const handle = s.instagram.replace(/^@/, "");
+    contacts.append(el("a", { href: `https://instagram.com/${handle}`, target: "_blank", rel: "noopener" }, "Instagram"));
+  }
+  if (s.email) contacts.append(el("a", { href: `mailto:${s.email}` }, s.email));
+
+  const links = el("div", { class: "footer-links" }, [
+    el("button", { type: "button", class: "link-btn", onclick: () => openPolicy("privacidade") }, "Política de Privacidade"),
+    el("button", { type: "button", class: "link-btn", onclick: () => openPolicy("termos") }, "Termos de Uso"),
+    el("button", { type: "button", class: "link-btn", onclick: () => openPolicy("trocas") }, "Trocas e Cancelamento"),
+  ]);
+
+  footer.append(
+    identity, contacts, links,
+    el("p", { class: "footer-fine" },
+      `© ${new Date().getFullYear()} ${store}. Bolo no pote artesanal. Imagens ilustrativas; consulte ingredientes e alérgenos em cada produto.`),
+  );
+}
+
+/* Conteúdo das políticas (modelo — deve ser revisado por um profissional). */
+function policyContent(kind) {
+  const s = db.settings;
+  const store = s.storeName || "Bolos da Bru";
+  const who = s.cnpj ? `${store} (CNPJ/CPF ${s.cnpj})` : store;
+  const contato = s.whatsapp ? "nosso WhatsApp" : (s.email || "nossos canais de atendimento");
+  const p = (t) => el("p", {}, t);
+  const h = (t) => el("h3", {}, t);
+
+  if (kind === "privacidade") {
+    return {
+      title: "Política de Privacidade",
+      body: [
+        p(`A ${who} valoriza a sua privacidade e trata seus dados conforme a Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018).`),
+        h("Quais dados coletamos"),
+        p("Coletamos nome, telefone e, quando você pede entrega, o endereço. No cadastro de novidades, coletamos nome e telefone."),
+        h("Para que usamos"),
+        p("Usamos seus dados apenas para produzir e entregar o seu pedido, combinar o pagamento e, se você autorizar, enviar novidades e promoções."),
+        h("Compartilhamento"),
+        p("Não vendemos nem compartilhamos seus dados com terceiros para fins de publicidade. Podemos usar serviços de mensagem (como o WhatsApp) para falar com você sobre o pedido."),
+        h("Seus direitos"),
+        p("Você pode pedir a qualquer momento para acessar, corrigir ou excluir seus dados, ou sair da lista de novidades, entrando em contato pelo " + contato + "."),
+        h("Armazenamento"),
+        p("Guardamos seus dados apenas pelo tempo necessário ao atendimento e às obrigações legais."),
+        p("Este é um modelo inicial — revise com um profissional antes de publicar oficialmente."),
+      ],
+    };
+  }
+  if (kind === "termos") {
+    return {
+      title: "Termos de Uso",
+      body: [
+        p(`Ao fazer um pedido com a ${who}, você concorda com os termos abaixo.`),
+        h("Pedidos e produção"),
+        p("Os bolos no pote são artesanais e produzidos sob encomenda para a data escolhida. Confirmamos a disponibilidade e o valor final (incluindo entrega) no atendimento."),
+        h("Pagamento"),
+        p("O pagamento é combinado no pedido (Pix, cartão ou dinheiro). Encomendas por Pix podem ser confirmadas mediante comprovante."),
+        h("Entrega e retirada"),
+        p("A taxa e o prazo de entrega dependem da região e são informados na confirmação. Na retirada, combinamos horário e local."),
+        h("Alergênicos"),
+        p("Nossos produtos podem conter e são produzidos em ambiente que manipula leite, glúten, ovos e oleaginosas. Consulte os ingredientes de cada sabor."),
+        p("Este é um modelo inicial — revise com um profissional antes de publicar oficialmente."),
+      ],
+    };
+  }
+  return {
+    title: "Trocas e Cancelamento",
+    body: [
+      p("Por se tratar de alimento perecível e produzido sob encomenda, seguimos o Código de Defesa do Consumidor."),
+      h("Cancelamento"),
+      p("Você pode cancelar sem custo até o início da produção. Após o preparo, por ser um bem perecível personalizado, o cancelamento pode não permitir reembolso integral."),
+      h("Problemas com o pedido"),
+      p("Se algo vier errado ou fora do combinado, fale com a gente pelo " + contato + " em até 24 horas do recebimento, com fotos, que resolvemos (troca ou reembolso)."),
+      h("Direito de arrependimento"),
+      p("Para compras a distância, o CDC prevê 7 dias de arrependimento; para alimentos perecíveis já produzidos, esse direito é limitado pela natureza do produto."),
+      p("Este é um modelo inicial — revise com um profissional antes de publicar oficialmente."),
+    ],
+  };
+}
+
+function openPolicy(kind) {
+  const { title, body } = policyContent(kind);
+  document.getElementById("policy-title").textContent = title;
+  const bodyEl = document.getElementById("policy-body");
+  bodyEl.textContent = "";
+  bodyEl.append(...body);
+  document.getElementById("policy-modal").hidden = false;
+}
+function closePolicy() { document.getElementById("policy-modal").hidden = true; }
 
 /* ============================================================
    Navegação, eventos e inicialização
@@ -2118,6 +2261,7 @@ function renderAll() {
   renderPromosTable();
   renderTips();
   renderShop();
+  renderShopFooter();
 }
 
 function bindEvents() {
@@ -2178,6 +2322,16 @@ function bindEvents() {
   });
   document.getElementById("signup-form").addEventListener("submit", submitSignup);
 
+  // Links de política (nos formulários e no rodapé) e fechamento do modal
+  document.querySelectorAll("[data-policy]").forEach((btn) => {
+    btn.addEventListener("click", () => openPolicy(btn.dataset.policy));
+  });
+  document.getElementById("policy-close").addEventListener("click", closePolicy);
+  document.querySelector("#policy-modal [data-close]").addEventListener("click", closePolicy);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !document.getElementById("policy-modal").hidden) closePolicy();
+  });
+
   document.getElementById("product-form").addEventListener("submit", submitProductForm);
   document.getElementById("btn-cancel-edit").addEventListener("click", resetProductForm);
   document.getElementById("product-image").addEventListener("change", (ev) => {
@@ -2230,8 +2384,14 @@ function bindEvents() {
     db.settings.whatsapp = digits;
     db.settings.pixKey = document.getElementById("cfg-pix-key").value.trim();
     db.settings.pixName = document.getElementById("cfg-pix-name").value.trim();
+    db.settings.storeName = document.getElementById("cfg-store-name").value.trim();
+    db.settings.cnpj = document.getElementById("cfg-cnpj").value.trim();
+    db.settings.city = document.getElementById("cfg-city").value.trim();
+    db.settings.instagram = document.getElementById("cfg-instagram").value.trim();
+    db.settings.email = document.getElementById("cfg-email").value.trim();
     document.getElementById("cfg-whatsapp").value = digits;
     saveDB();
+    renderShopFooter();
     toast("Configurações da loja salvas.");
   });
   document.getElementById("btn-clear-data").addEventListener("click", () => {
@@ -2255,6 +2415,11 @@ updateSaleFormUI();
 document.getElementById("cfg-whatsapp").value = db.settings.whatsapp || "";
 document.getElementById("cfg-pix-key").value = db.settings.pixKey || "";
 document.getElementById("cfg-pix-name").value = db.settings.pixName || "";
+document.getElementById("cfg-store-name").value = db.settings.storeName || "";
+document.getElementById("cfg-cnpj").value = db.settings.cnpj || "";
+document.getElementById("cfg-city").value = db.settings.city || "";
+document.getElementById("cfg-instagram").value = db.settings.instagram || "";
+document.getElementById("cfg-email").value = db.settings.email || "";
 renderAll();
 
 // Restaura a sessão salva; sem sessão válida, mostra a tela de login.

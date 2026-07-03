@@ -264,6 +264,14 @@
                 <input type="text" inputmode="decimal" id="product-cost" placeholder="0,00" required></div></label>
             <label class="field"><span>Estoque (potes prontos)</span>
               <input type="number" id="product-stock" required min="0" step="1"></label>
+            <label class="field"><span>Descrição / ingredientes</span>
+              <textarea id="product-description" maxlength="400" rows="2" placeholder="Ex.: Massa de chocolate, brigadeiro cremoso e morangos frescos. Ingredientes: leite, açúcar, cacau, ovos, trigo…"></textarea></label>
+            <div class="field-row">
+              <label class="field"><span>Contém alérgenos</span>
+                <input type="text" id="product-allergens" maxlength="120" placeholder="Ex.: leite, glúten, ovos"></label>
+              <label class="field"><span>Validade</span>
+                <input type="text" id="product-shelf" maxlength="60" placeholder="Ex.: 5 dias refrigerado"></label>
+            </div>
             <label class="field"><span>Foto do produto (opcional)</span>
               <input type="file" id="product-image" accept="image/*"></label>
             <div class="img-preview" id="product-image-preview" hidden>
@@ -362,8 +370,26 @@
           <label class="field"><span>Nome do recebedor</span>
             <input type="text" id="cfg-pix-name" maxlength="60" placeholder="Nome que aparece no Pix"></label>
         </div>
+
+        <h3 class="cfg-subtitle">Dados do vendedor (aparecem no rodapé da loja)</h3>
+        <p class="card-sub">Exigidos para vender ao público (Código de Defesa do Consumidor). Preencha com os seus dados reais.</p>
+        <div class="field-row">
+          <label class="field"><span>Nome / razão social</span>
+            <input type="text" id="cfg-store-name" maxlength="80" placeholder="Ex.: Bruna M. Confeitaria"></label>
+          <label class="field"><span>CNPJ ou CPF (MEI)</span>
+            <input type="text" id="cfg-cnpj" maxlength="30" placeholder="00.000.000/0001-00"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>Cidade / UF</span>
+            <input type="text" id="cfg-city" maxlength="60" placeholder="São Paulo / SP"></label>
+          <label class="field"><span>Instagram (opcional)</span>
+            <input type="text" id="cfg-instagram" maxlength="40" placeholder="@bolosdabru"></label>
+        </div>
+        <label class="field"><span>E-mail de contato (opcional)</span>
+          <input type="email" id="cfg-email" maxlength="80" placeholder="contato@bolosdabru.com.br"></label>
+
         <button class="btn primary" id="btn-save-config">Salvar configurações</button>
-        <p class="card-sub" style="margin-top:10px">Com o WhatsApp salvo, o resumo do pedido chega até você. Com a chave Pix, o cliente vê a chave e o valor na confirmação do pedido e pode pagar na hora.</p>
+        <p class="card-sub" style="margin-top:10px">Com o WhatsApp salvo, o resumo do pedido chega até você; com a chave Pix, o cliente paga na confirmação; com os dados do vendedor, o rodapé legal e as políticas aparecem na loja.</p>
       </article>
 
       <article class="card danger-zone">
@@ -418,6 +444,8 @@
               <label><input type="radio" name="shop-payment" value="Cartão"> Cartão na entrega</label>
               <label><input type="radio" name="shop-payment" value="Dinheiro"> Dinheiro na entrega</label>
             </fieldset>
+            <label class="consent"><input type="checkbox" id="shop-consent">
+              <span>Concordo em compartilhar meus dados para o atendimento deste pedido e li a <button type="button" class="link-btn" data-policy="privacidade">Política de Privacidade</button>.</span></label>
             <button type="submit" class="btn primary shop-submit">Enviar pedido</button>
             <p class="card-sub shop-note">Confirmamos seu pagamento e o valor da entrega ao receber o pedido.</p>
           </form>
@@ -473,14 +501,29 @@
               <input type="text" id="signup-name" maxlength="60" placeholder="Como podemos te chamar?"></label>
             <label class="field"><span>Telefone / WhatsApp</span>
               <input type="tel" id="signup-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
+            <label class="consent"><input type="checkbox" id="signup-consent">
+              <span>Aceito receber mensagens da loja e li a <button type="button" class="link-btn" data-policy="privacidade">Política de Privacidade</button>.</span></label>
             <button type="submit" class="btn shop-submit">Quero receber novidades</button>
           </form>
           <div id="signup-result"></div>
         </article>
       </div>
+
+      <footer class="shop-footer" id="shop-footer"></footer>
      </div>
     </section>
   </main>
+
+  <div id="policy-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="policy-title">
+      <div class="modal-head">
+        <h2 id="policy-title"></h2>
+        <button type="button" class="modal-close" id="policy-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal-body" id="policy-body"></div>
+    </div>
+  </div>
 
   <div id="tooltip" class="tooltip" role="status" hidden></div>
   <div id="toast" class="toast" role="status" hidden></div>

@@ -117,10 +117,12 @@ O sistema funciona 100% no navegador, sem servidor. Isso significa:
 
 ## Testes automatizados
 
-Suíte E2E com [Playwright](https://playwright.dev): 26 testes cobrindo primeiro
-acesso, dashboard e filtros, os três canais de venda, encomendas (inclusive
-atraso e estorno), a loja do cliente, CRUD de produtos e promoções, dicas,
-configurações, persistência, CSV e modo escuro.
+Suíte E2E com [Playwright](https://playwright.dev): 41 testes cobrindo primeiro
+acesso e permissões (perfis admin/cliente), dashboard e filtros, os três canais
+de venda, encomendas (inclusive atraso e estorno), a loja do cliente, fluxo de
+pagamento Pix, consentimento LGPD, rotulagem de produtos, rodapé legal, CRUD de
+produtos (com foto) e promoções, dicas, configurações, persistência, CSV e modo
+escuro.
 
 ```bash
 npm install

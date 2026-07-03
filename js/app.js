@@ -365,6 +365,7 @@ function seedDemoData() {
         dateISO,
         time: `${hour}:${minute}`,
         payment: payments[Math.floor(rand() * payments.length)],
+        paid: true,      // vendas já concluídas: pagamento recebido
         status: "ok",
         channel, customer, deliveryFee, deliveryDate,
         items,
@@ -375,17 +376,18 @@ function seedDemoData() {
   // Encomendas ainda abertas: uma atrasada (para demonstrar o alerta),
   // as demais nos próximos dias.
   const pendingSeed = [
-    { name: "Mariana", phone: "(11) 98888-1234", address: "Jardim América", days: -1, itemDefs: [["p1", 6]], fee: 8 },
-    { name: "Seu João", phone: "(11) 97777-4321", address: "", days: 1, itemDefs: [["p2", 4], ["p6", 2]], fee: 0 },
-    { name: "Escola Sol Nascente", phone: "(11) 96666-0000", address: "Centro", days: 2, itemDefs: [["p4", 10]], fee: 12 },
-    { name: "Carla", phone: "(11) 95555-9090", address: "", days: 5, itemDefs: [["p1", 3], ["p3", 3]], fee: 0 },
+    { name: "Mariana", phone: "(11) 98888-1234", address: "Jardim América", days: -1, itemDefs: [["p1", 6]], fee: 8, payment: "Pix", paid: true },
+    { name: "Seu João", phone: "(11) 97777-4321", address: "", days: 1, itemDefs: [["p2", 4], ["p6", 2]], fee: 0, payment: "Dinheiro", paid: false },
+    { name: "Escola Sol Nascente", phone: "(11) 96666-0000", address: "Centro", days: 2, itemDefs: [["p4", 10]], fee: 12, payment: "Pix", paid: false },
+    { name: "Carla", phone: "(11) 95555-9090", address: "", days: 5, itemDefs: [["p1", 3], ["p3", 3]], fee: 0, payment: "Cartão", paid: false },
   ];
   for (const o of pendingSeed) {
     db.sales.push({
       id: uid(),
       dateISO: addDays(today, Math.min(o.days, 0) - 2),
       time: "10:00",
-      payment: "Pix",
+      payment: o.payment,
+      paid: o.paid,
       status: "pendente",
       channel: "encomenda",
       customer: { name: o.name, phone: o.phone, address: o.address },
@@ -1080,6 +1082,8 @@ function confirmSale() {
     dateISO: todayISO(),
     time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
     payment,
+    // Balcão/delivery: pago na hora. Encomenda: o admin confirma o recebimento depois.
+    paid: channel !== "encomenda",
     status: channel === "encomenda" ? "pendente" : "ok",
     channel,
     customer: channel === "balcao" ? null : customer,
@@ -1115,12 +1119,23 @@ function confirmSale() {
 function concludeOrder(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
   if (!sale || sale.status !== "pendente") return;
+  if (!sale.paid && !confirm("Este pedido ainda não teve o pagamento confirmado. Concluir mesmo assim?")) return;
   sale.status = "ok";
   // Entrega antecipada conta como receita de hoje.
   if (sale.deliveryDate > todayISO()) sale.deliveryDate = todayISO();
   saveDB();
   renderAll();
   toast(`Encomenda de ${sale.customer?.name || "cliente"} concluída e somada às vendas.`);
+}
+
+/* O admin apenas confirma que o pagamento (feito pelo cliente) foi recebido. */
+function markOrderPaid(saleId) {
+  const sale = db.sales.find((s) => s.id === saleId);
+  if (!sale || sale.paid) return;
+  sale.paid = true;
+  saveDB();
+  renderAll();
+  toast(`Pagamento de ${sale.customer?.name || "cliente"} confirmado (${sale.payment}).`);
 }
 
 function cancelSale(saleId) {
@@ -1150,7 +1165,7 @@ function renderOrders() {
   const orders = pendingOrders()
     .sort((a, b) => (a.deliveryDate || "").localeCompare(b.deliveryDate || ""));
   if (!orders.length) {
-    tbody.append(el("tr", {}, el("td", { colspan: "7", class: "empty-msg" },
+    tbody.append(el("tr", {}, el("td", { colspan: "8", class: "empty-msg" },
       "Nenhuma encomenda aberta. Registre uma escolhendo o canal \"Encomenda\" na nova venda.")));
     return;
   }
@@ -1161,18 +1176,33 @@ function renderOrders() {
     else if (o.deliveryDate === today) badge = el("span", { class: "badge warning" }, "Hoje");
     else badge = el("span", { class: "badge neutral" }, "Agendada");
     const contact = [o.customer?.phone, o.customer?.address].filter(Boolean).join(" · ") || "—";
+
+    // Pagamento: o cliente já escolheu a forma; aqui o admin só visualiza e confirma.
+    const payCell = el("td", {}, [
+      el("span", {}, o.payment || "—"),
+      o.paid
+        ? el("span", { class: "badge good" }, "Pago")
+        : el("span", { class: "badge warning" }, "A receber"),
+    ]);
+
+    const actions = [];
+    if (!o.paid) {
+      actions.push(el("button", { class: "btn small", onclick: () => markOrderPaid(o.id) }, "Confirmar pagamento"), " ");
+    }
+    actions.push(
+      el("button", { class: "btn small", onclick: () => concludeOrder(o.id) }, "Concluir"), " ",
+      el("button", { class: "btn small ghost danger-text", onclick: () => cancelSale(o.id) }, "Cancelar"),
+    );
+
     tbody.append(el("tr", {}, [
       el("td", {}, fmtDateBR(o.deliveryDate)),
       el("td", {}, o.customer?.name || "—"),
       el("td", {}, o.items.map((it) => `${it.qty}× ${it.name}`).join(", ")),
       el("td", {}, contact),
       el("td", { class: "num" }, fmtMoney(saleTotal(o))),
+      payCell,
       el("td", {}, badge),
-      el("td", {}, [
-        el("button", { class: "btn small", onclick: () => concludeOrder(o.id) }, "Concluir"),
-        " ",
-        el("button", { class: "btn small ghost danger-text", onclick: () => cancelSale(o.id) }, "Cancelar"),
-      ]),
+      el("td", { class: "order-actions" }, actions),
     ]));
   }
 }
@@ -1220,7 +1250,7 @@ function renderSalesTable() {
 }
 
 function exportSalesCSV() {
-  const header = "data;hora;status;canal;cliente;entrega;pagamento;itens;subtotal;desconto;taxa_entrega;total\n";
+  const header = "data;hora;status;canal;cliente;entrega;pagamento;pago;itens;subtotal;desconto;taxa_entrega;total\n";
   const escapeCSV = (s) => `"${String(s).replaceAll('"', '""')}"`;
   const body = db.sales.map((s) => [
     s.dateISO, s.time || "", s.status,
@@ -1228,6 +1258,7 @@ function exportSalesCSV() {
     escapeCSV(s.customer?.name || ""),
     s.deliveryDate || "",
     s.payment,
+    s.paid ? "sim" : "não",
     escapeCSV(s.items.map((it) => `${it.qty}x ${it.name}`).join(", ")),
     saleSubtotal(s).toFixed(2).replace(".", ","),
     saleDiscount(s).toFixed(2).replace(".", ","),
@@ -1794,12 +1825,14 @@ function submitShopOrder(ev) {
   if (wantsDelivery && !address) { toast("Informe o endereço de entrega."); return; }
   if (!dueDate || dueDate < todayISO()) { toast("Escolha uma data válida para o pedido."); return; }
 
+  const payment = document.querySelector('input[name="shop-payment"]:checked').value;
   const now = new Date();
   const sale = {
     id: uid(),
     dateISO: todayISO(),
     time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-    payment: "A combinar",
+    payment,           // forma escolhida pelo cliente
+    paid: false,       // o admin confirma o recebimento depois
     status: "pendente",
     channel: "encomenda",
     customer: { name, phone, address: wantsDelivery ? address : "" },
@@ -1824,6 +1857,7 @@ function submitShopOrder(ev) {
     "Olá! Acabei de fazer um pedido na loja Bolos da Bru.",
     ...sale.items.map((it) => `• ${it.qty}× ${it.name}`),
     `Total: ${fmtMoney(saleTotal(sale))}`,
+    `Pagamento: ${payment}`,
     `Para: ${fmtDateBR(dueDate)} (${wantsDelivery ? "entrega em " + address : "retirada"})`,
     `Nome: ${name} — ${phone}`,
   ].join("\n");
@@ -1840,7 +1874,7 @@ function submitShopOrder(ev) {
       el("span", { class: "tip-icon" }, icon("check")),
       el("div", {}, [
         el("h3", {}, "Pedido enviado!"),
-        el("p", {}, `Obrigada, ${name}! Seu pedido para ${fmtDateBR(dueDate)} entrou na fila de produção. Se quiser agilizar, mande o resumo no nosso WhatsApp:`),
+        el("p", {}, `Obrigada, ${name}! Seu pedido para ${fmtDateBR(dueDate)} entrou na fila de produção. Pagamento por ${payment}${payment === "Pix" ? " — assim que enviar o Pix, confirmamos o recebimento" : " — combinado na entrega"}. Mande o resumo no nosso WhatsApp:`),
         el("a", {
           class: "btn", target: "_blank", rel: "noopener",
           href: `https://wa.me/${db.settings.whatsapp || ""}?text=` + encodeURIComponent(summary),
@@ -1878,9 +1912,13 @@ function trackOrders() {
   for (const s of found) {
     const info = statusInfo[s.status] || statusInfo.pendente;
     const items = s.items.map((it) => `${it.qty}× ${it.name}`).join(", ");
+    const payBadge = s.paid
+      ? el("span", { class: "badge good" }, "Pagamento confirmado")
+      : el("span", { class: "badge warning" }, `Aguardando pagamento (${s.payment})`);
     box.append(el("div", { class: "track-item" }, [
       el("div", { class: "track-item-head" }, [
         el("span", { class: `badge ${info.cls}` }, info.label),
+        payBadge,
         el("span", { class: "track-date" },
           (s.deliveryDate ? "Entrega " + fmtDateBR(s.deliveryDate) : fmtDateBR(s.dateISO))),
       ]),

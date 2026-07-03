@@ -239,7 +239,7 @@
         <div class="table-scroll">
           <table class="table" id="orders-table">
             <thead>
-              <tr><th>Entrega</th><th>Cliente</th><th>Itens</th><th>Contato / endereço</th><th class="num">Valor</th><th>Situação</th><th></th></tr>
+              <tr><th>Entrega</th><th>Cliente</th><th>Itens</th><th>Contato / endereço</th><th class="num">Valor</th><th>Pagamento</th><th>Situação</th><th></th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -406,8 +406,14 @@
               <input type="text" id="shop-address" maxlength="90" placeholder="Rua, número, bairro"></label>
             <label class="field"><span>Para quando?</span>
               <input type="date" id="shop-date"></label>
+            <fieldset class="pay-methods">
+              <legend>Como quer pagar?</legend>
+              <label><input type="radio" name="shop-payment" value="Pix" checked> Pix (antecipado)</label>
+              <label><input type="radio" name="shop-payment" value="Cartão"> Cartão na entrega</label>
+              <label><input type="radio" name="shop-payment" value="Dinheiro"> Dinheiro na entrega</label>
+            </fieldset>
             <button type="submit" class="btn primary shop-submit">Enviar pedido</button>
-            <p class="card-sub shop-note">A taxa de entrega e o pagamento são combinados na confirmação do pedido.</p>
+            <p class="card-sub shop-note">Confirmamos seu pagamento e o valor da entrega ao receber o pedido.</p>
           </form>
           <div id="shop-confirmation" hidden></div>
         </article>

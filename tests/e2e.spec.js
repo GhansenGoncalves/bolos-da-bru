@@ -200,10 +200,11 @@ test.describe("Fluxo de venda", () => {
     await page.click("#btn-confirm-sale");
     await expect(page.locator("#toast")).toContainText("Venda registrada: R$ 30,60");
     expect(await countSales()).toBe(salesBefore + 1);
-    // O total do histórico já vem líquido do desconto (2 × R$ 17,00 − R$ 3,40)
-    const historyRow = page.locator("#sales-table tbody tr", { hasText: "2× Ninho com Nutella" }).first();
-    await expect(historyRow).toContainText("R$ 30,60");
-    await expect(historyRow).toContainText("Balcão");
+    // O total do histórico já vem líquido do desconto (2 × R$ 17,00 − R$ 3,40).
+    // Busca pela venda de balcão recém-criada (evita colidir com dados de exemplo).
+    const historyRow = page.locator("#sales-table tbody tr")
+      .filter({ hasText: "Balcão" }).filter({ hasText: "R$ 30,60" }).first();
+    await expect(historyRow).toContainText("2× Ninho com Nutella");
     // Carrinho zera após a venda
     await expect(page.locator("#cart-empty")).toBeVisible();
   });
@@ -342,7 +343,14 @@ test.describe("Encomendas", () => {
     );
     expect(before).toBeGreaterThan(0);
 
-    await orderRow.getByRole("button", { name: "Concluir" }).click();
+    // O pedido do cliente entra como "A receber"; o admin confirma o pagamento.
+    await expect(orderRow).toContainText("A receber");
+    await orderRow.getByRole("button", { name: "Confirmar pagamento" }).click();
+    await expect(page.locator("#toast")).toContainText("Pagamento de Dona Rosa confirmado");
+    await expect(page.locator("#orders-table tbody tr", { hasText: "Dona Rosa" })).toContainText("Pago");
+
+    await page.locator("#orders-table tbody tr", { hasText: "Dona Rosa" })
+      .getByRole("button", { name: "Concluir" }).click();
     await expect(page.locator("#toast")).toContainText("concluída e somada às vendas");
     await expect(page.locator("#orders-table tbody tr", { hasText: "Dona Rosa" })).toHaveCount(0);
     const status = await page.evaluate(
@@ -382,6 +390,8 @@ test.describe("Loja (visão do cliente)", () => {
     await page.fill("#shop-phone", "(11) 98765-4321");
     await page.check('input[name="shop-fulfil"][value="entrega"]');
     await page.fill("#shop-address", "Av. Brasil, 100 — Jardim América");
+    // O cliente escolhe como quer pagar
+    await page.check('input[name="shop-payment"][value="Dinheiro"]');
     await page.click(".shop-submit");
 
     await expect(page.locator("#shop-confirmation")).toContainText("Pedido enviado!");
@@ -391,6 +401,9 @@ test.describe("Loja (visão do cliente)", () => {
     const orderRow = page.locator("#orders-table tbody tr", { hasText: "Beatriz Lima" });
     await expect(orderRow).toContainText("2× Ninho com Nutella");
     await expect(orderRow).toContainText("Av. Brasil, 100");
+    // O pedido chega com a forma escolhida pelo cliente e como "A receber"
+    await expect(orderRow).toContainText("Dinheiro");
+    await expect(orderRow).toContainText("A receber");
   });
 
   test("loja exige contato antes de enviar o pedido", async ({ page }) => {

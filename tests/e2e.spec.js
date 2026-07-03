@@ -9,14 +9,17 @@ const { test, expect } = require("@playwright/test");
 
 const STORE_KEY = "bolosdabru-v1";
 
-/* Faz login pelo perfil desejado (admin por padrão). */
+/* Faz login pelo perfil desejado (admin por padrão). O cliente entra pelo
+   atalho de demonstração; o admin, pela aba "Sou a loja". */
 async function loginAs(page, role = "admin") {
-  const creds = role === "cliente"
-    ? { user: "cliente", pass: "cliente123" }
-    : { user: "admin", pass: "bru2024" };
-  await page.fill("#login-user", creds.user);
-  await page.fill("#login-pass", creds.pass);
-  await page.click(".login-submit");
+  if (role === "cliente") {
+    await page.click('.login-demo-btn[data-user="cliente"]');
+  } else {
+    await page.click('.auth-tab[data-authtab="admin"]');
+    await page.fill("#login-user", "admin");
+    await page.fill("#login-pass", "bru2024");
+    await page.click("#login-form .login-submit");
+  }
   await expect(page.locator("#login-gate")).toBeHidden();
 }
 
@@ -58,9 +61,10 @@ async function stockOf(page, name) {
 test.describe("Acesso e permissões", () => {
   test("login inválido mostra erro", async ({ page }) => {
     await page.goto("/");
+    await page.click('.auth-tab[data-authtab="admin"]');
     await page.fill("#login-user", "admin");
     await page.fill("#login-pass", "senhaerrada");
-    await page.click(".login-submit");
+    await page.click("#login-form .login-submit");
     await expect(page.locator("#login-error")).toBeVisible();
     await expect(page.locator("#login-gate")).toBeVisible();
   });
@@ -109,9 +113,67 @@ test.describe("Acesso e permissões", () => {
 
   test("atalho de conta de demonstração entra com um clique", async ({ page }) => {
     await page.goto("/");
+    await page.click('.auth-tab[data-authtab="admin"]');
     await page.click('.login-demo-btn[data-user="admin"]');
     await expect(page.locator("#login-gate")).toBeHidden();
     await expect(page.locator("#view-dashboard")).toBeVisible();
+  });
+
+  test("cliente cria conta, entra e a sessão persiste", async ({ page }) => {
+    await page.goto("/");
+    // Aba cliente já vem ativa; alterna para "Criar conta"
+    await page.click('.cli-mode[data-climode="criar"]');
+    await page.fill("#cl-reg-name", "Ana Cliente");
+    await page.fill("#cl-reg-phone", "(11) 98888-7777");
+    await page.fill("#cl-reg-email", "ana@exemplo.com");
+    await page.fill("#cl-reg-pass", "senha123");
+    await page.check("#cl-reg-consent");
+    await page.click("#customer-register-form .login-submit");
+
+    await expect(page.locator("#login-gate")).toBeHidden();
+    await expect(page.locator("#view-loja")).toBeVisible();
+    await expect(page.locator("#user-badge")).toContainText("Ana Cliente");
+    // Os dados entram pré-preenchidos no pedido
+    await expect(page.locator("#shop-name")).toHaveValue("Ana Cliente");
+
+    // A sessão persiste após recarregar
+    await page.reload();
+    await expect(page.locator("#login-gate")).toBeHidden();
+    await expect(page.locator("#user-badge")).toContainText("Ana Cliente");
+  });
+
+  test("cadastro valida e-mail e evita conta duplicada", async ({ page }) => {
+    await page.goto("/");
+    await page.click('.cli-mode[data-climode="criar"]');
+    // E-mail inválido
+    await page.fill("#cl-reg-name", "Bruno");
+    await page.fill("#cl-reg-phone", "(11) 97777-6666");
+    await page.fill("#cl-reg-email", "email-invalido");
+    await page.fill("#cl-reg-pass", "senha123");
+    await page.check("#cl-reg-consent");
+    await page.click("#customer-register-form .login-submit");
+    await expect(page.locator("#cl-error")).toContainText("E-mail inválido");
+    await expect(page.locator("#login-gate")).toBeVisible();
+  });
+
+  test("cliente entra com a conta criada por e-mail e senha", async ({ page }) => {
+    await page.goto("/");
+    // Cria a conta
+    await page.click('.cli-mode[data-climode="criar"]');
+    await page.fill("#cl-reg-name", "Clara");
+    await page.fill("#cl-reg-phone", "(11) 96666-5555");
+    await page.fill("#cl-reg-email", "clara@exemplo.com");
+    await page.fill("#cl-reg-pass", "minhasenha");
+    await page.check("#cl-reg-consent");
+    await page.click("#customer-register-form .login-submit");
+    await page.click("#btn-logout");
+
+    // Entra de novo com e-mail + senha
+    await page.fill("#cl-login-id", "clara@exemplo.com");
+    await page.fill("#cl-login-pass", "minhasenha");
+    await page.click("#customer-login-form .login-submit");
+    await expect(page.locator("#login-gate")).toBeHidden();
+    await expect(page.locator("#user-badge")).toContainText("Clara");
   });
 });
 

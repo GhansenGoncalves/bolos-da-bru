@@ -19,21 +19,63 @@
         </svg>
       </span>
       <h1>Bolos da Bru</h1>
-      <p class="login-sub">Entre para acessar o sistema</p>
-      <form id="login-form">
-        <label class="field"><span>Usuário</span>
-          <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
-        <label class="field"><span>Senha</span>
-          <input type="password" id="login-pass" autocomplete="current-password"></label>
+      <p class="login-sub">Entre para fazer seu pedido</p>
+
+      <div class="login-tabs" role="tablist">
+        <button type="button" class="auth-tab active" data-authtab="cliente">Sou cliente</button>
+        <button type="button" class="auth-tab" data-authtab="admin">Sou a loja</button>
+      </div>
+
+      <!-- ===== Cliente ===== -->
+      <div class="auth-pane" id="auth-cliente">
+        <div class="login-tabs sub">
+          <button type="button" class="cli-mode active" data-climode="entrar">Entrar</button>
+          <button type="button" class="cli-mode" data-climode="criar">Criar conta</button>
+        </div>
+
+        <form id="customer-login-form" class="cli-form" novalidate>
+          <label class="field"><span>E-mail ou telefone</span>
+            <input type="text" id="cl-login-id" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="voce@email.com ou (11) 99999-9999"></label>
+          <label class="field"><span>Senha</span>
+            <input type="password" id="cl-login-pass" autocomplete="current-password"></label>
+          <button type="submit" class="btn primary login-submit">Entrar</button>
+        </form>
+
+        <form id="customer-register-form" class="cli-form" novalidate hidden>
+          <label class="field"><span>Nome completo</span>
+            <input type="text" id="cl-reg-name" maxlength="60" autocomplete="name" placeholder="Seu nome"></label>
+          <label class="field"><span>Telefone / WhatsApp</span>
+            <input type="tel" id="cl-reg-phone" maxlength="15" placeholder="(11) 99999-9999"></label>
+          <label class="field"><span>E-mail</span>
+            <input type="email" id="cl-reg-email" maxlength="80" autocomplete="email" placeholder="voce@email.com"></label>
+          <label class="field"><span>Senha (mín. 4 caracteres)</span>
+            <input type="password" id="cl-reg-pass" autocomplete="new-password"></label>
+          <label class="consent"><input type="checkbox" id="cl-reg-consent">
+            <span>Li e concordo com a <button type="button" class="link-btn" data-policy="privacidade">Política de Privacidade</button>.</span></label>
+          <button type="submit" class="btn primary login-submit">Criar conta e entrar</button>
+        </form>
+
+        <p id="cl-error" class="login-error" hidden></p>
+        <div class="login-demo">
+          <button type="button" class="login-demo-btn" data-user="cliente">
+            <strong>Entrar como cliente (demonstração)</strong><span>vê só a loja, sem cadastrar</span></button>
+        </div>
+      </div>
+
+      <!-- ===== Loja (admin) ===== -->
+      <div class="auth-pane" id="auth-admin" hidden>
+        <form id="login-form">
+          <label class="field"><span>Usuário</span>
+            <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+          <label class="field"><span>Senha</span>
+            <input type="password" id="login-pass" autocomplete="current-password"></label>
+          <button type="submit" class="btn primary login-submit">Entrar</button>
+        </form>
         <p id="login-error" class="login-error" hidden></p>
-        <button type="submit" class="btn primary login-submit">Entrar</button>
-      </form>
-      <div class="login-demo">
-        <p>Contas de demonstração — clique para entrar:</p>
-        <button type="button" class="login-demo-btn" data-user="admin" data-pass="bru2024">
-          <strong>Administrador</strong><span>acesso total ao sistema</span></button>
-        <button type="button" class="login-demo-btn" data-user="cliente" data-pass="cliente123">
-          <strong>Cliente</strong><span>apenas a loja</span></button>
+        <div class="login-demo">
+          <button type="button" class="login-demo-btn" data-user="admin" data-pass="bru2024">
+            <strong>Administrador (demonstração)</strong><span>acesso total ao sistema</span></button>
+        </div>
       </div>
     </div>
   </div>

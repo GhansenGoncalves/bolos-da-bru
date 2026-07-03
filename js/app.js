@@ -228,12 +228,14 @@ const ACCOUNTS = {
   cliente: { password: "cliente123", role: "cliente", name: "Cliente (visitante)" },
 };
 let currentRole = null;
+let currentCustomer = null;
 
 const db = {
   products: [],
   sales: [],
   promos: [],
   subscribers: [],
+  customers: [],
   settings: {
     whatsapp: "", pixKey: "", pixName: "",
     storeName: "", cnpj: "", city: "", instagram: "", email: "",
@@ -268,6 +270,7 @@ function loadDB() {
     db.sales = data.sales || [];
     db.promos = data.promos || [];
     db.subscribers = data.subscribers || [];
+    db.customers = data.customers || [];
     db.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
   } catch { /* dados corrompidos: recomeça vazio */ }
 }
@@ -1197,6 +1200,12 @@ function renderOrders() {
     if (!o.paid) {
       actions.push(el("button", { class: "btn small", onclick: () => markOrderPaid(o.id) }, "Confirmar pagamento"), " ");
     }
+    if (o.customer?.address) {
+      actions.push(el("a", {
+        class: "btn small ghost", target: "_blank", rel: "noopener",
+        href: mapsRouteUrl(o.customer.address), title: "Abrir a rota no mapa",
+      }, "🗺 Rota"), " ");
+    }
     actions.push(
       el("button", { class: "btn small", onclick: () => concludeOrder(o.id) }, "Concluir"), " ",
       el("button", { class: "btn small ghost danger-text", onclick: () => cancelSale(o.id) }, "Cancelar"),
@@ -1998,6 +2007,13 @@ function renderShopConfirmation(sale, summary) {
 
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
 
+/* Link de rota no mapa (abre Google Maps/Waze no celular, sem chave de API).
+   Inclui a cidade da loja para ajudar a geolocalizar o destino. */
+function mapsRouteUrl(address) {
+  const dest = [address, db.settings.city].filter(Boolean).join(", ");
+  return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(dest);
+}
+
 /* Acompanhamento: o cliente busca os próprios pedidos pelo telefone. Funciona
    com os pedidos registrados neste dispositivo/loja. */
 function trackOrders() {
@@ -2211,40 +2227,116 @@ function switchView(view) {
 function readSession() {
   try { return localStorage.getItem(SESSION_KEY); } catch { return null; }
 }
-
-function applyRole(username) {
-  const acc = ACCOUNTS[username];
-  if (!acc) return;
-  currentRole = acc.role;
-  document.body.classList.toggle("role-cliente", acc.role === "cliente");
-  document.body.classList.toggle("role-admin", acc.role === "admin");
-  document.getElementById("user-badge").textContent = acc.name;
-  document.getElementById("login-gate").hidden = true;
-  // A vitrine do cliente nunca deve ficar vazia: se ainda não há produtos
-  // (visitante num navegador novo), carrega o cardápio de exemplo.
-  if (acc.role === "cliente" && !db.products.length) {
-    seedDemoData();
-    saveDB();
-    renderAll();
-  }
-  switchView(acc.role === "cliente" ? "loja" : "dashboard");
-  renderShop(); // garante cardápio e data preenchidos ao entrar
+function writeSession(v) {
+  try { v ? localStorage.setItem(SESSION_KEY, v) : localStorage.removeItem(SESSION_KEY); }
+  catch { /* sem persistência */ }
 }
 
-function doLogin(username, password) {
-  const acc = ACCOUNTS[username];
-  if (!acc || acc.password !== password) return false;
-  try { localStorage.setItem(SESSION_KEY, username); } catch { /* sem persistência */ }
-  applyRole(username);
+/* Hash simples para as senhas guardadas no navegador. Ofusca, mas NÃO é
+   segurança real — a validação verdadeira exige um servidor (ver Fase 1). */
+function hashPass(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
+  return "h" + (h >>> 0).toString(36);
+}
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+/* Coloca a loja no ar para o perfil informado (admin, cliente-demo ou uma
+   conta de cliente). Prefill dos dados quando é uma conta real. */
+function enterAs(role, customer) {
+  currentRole = role;
+  currentCustomer = customer || null;
+  document.body.classList.toggle("role-cliente", role === "cliente");
+  document.body.classList.toggle("role-admin", role === "admin");
+  const badge = role === "admin"
+    ? "Bru · Administradora"
+    : (customer ? customer.name : "Cliente (visitante)");
+  document.getElementById("user-badge").textContent = badge;
+  document.getElementById("login-gate").hidden = true;
+  // A vitrine do cliente nunca deve ficar vazia.
+  if (role === "cliente" && !db.products.length) {
+    seedDemoData(); saveDB(); renderAll();
+  }
+  switchView(role === "cliente" ? "loja" : "dashboard");
+  // Prefill dos campos do cliente logado
+  if (customer) {
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v || ""; };
+    set("shop-name", customer.name);
+    set("shop-phone", customer.phone);
+    set("track-phone", customer.phone);
+  }
+  renderShop();
+}
+
+/* Restaura a sessão salva: "admin", "cliente-demo" ou "cliente:<id>". */
+function restoreSession(token) {
+  if (token === "admin") return enterAs("admin"), true;
+  if (token === "cliente-demo") return enterAs("cliente"), true;
+  if (token && token.startsWith("cliente:")) {
+    const c = db.customers.find((x) => x.id === token.slice(8));
+    if (c) return enterAs("cliente", c), true;
+  }
+  return false;
+}
+
+/* Login da loja (admin). */
+function doAdminLogin(password) {
+  if (password !== ACCOUNTS.admin.password) return false;
+  writeSession("admin");
+  enterAs("admin");
   return true;
 }
 
+/* Login do cliente por e-mail OU telefone + senha. */
+function doCustomerLogin(idRaw, password) {
+  const id = idRaw.trim().toLowerCase();
+  const phone = onlyDigits(idRaw);
+  const c = db.customers.find((x) =>
+    (x.email && x.email.toLowerCase() === id) || (phone && onlyDigits(x.phone) === phone));
+  if (!c || c.pass !== hashPass(password)) return false;
+  writeSession("cliente:" + c.id);
+  enterAs("cliente", c);
+  return true;
+}
+
+/* Cadastro de novo cliente com validação de formato. */
+function doCustomerRegister({ name, phone, email, pass }) {
+  if (!name || name.trim().length < 2) return { ok: false, msg: "Informe seu nome completo." };
+  if (onlyDigits(phone).length < 10) return { ok: false, msg: "Telefone inválido — use DDD + número." };
+  if (!isEmail(email)) return { ok: false, msg: "E-mail inválido." };
+  if (!pass || pass.length < 4) return { ok: false, msg: "A senha precisa de ao menos 4 caracteres." };
+  const emailLc = email.trim().toLowerCase();
+  const phoneD = onlyDigits(phone);
+  if (db.customers.some((c) => c.email.toLowerCase() === emailLc)) {
+    return { ok: false, msg: "Já existe uma conta com esse e-mail. Tente entrar." };
+  }
+  if (db.customers.some((c) => onlyDigits(c.phone) === phoneD)) {
+    return { ok: false, msg: "Já existe uma conta com esse telefone. Tente entrar." };
+  }
+  const c = { id: uid(), name: name.trim(), phone: phone.trim(), email: email.trim(), pass: hashPass(pass), createdAt: todayISO() };
+  db.customers.push(c);
+  writeSession("cliente:" + c.id);
+  saveDB();
+  enterAs("cliente", c);
+  return { ok: true };
+}
+
 function logout() {
-  try { localStorage.removeItem(SESSION_KEY); } catch { /* sem persistência */ }
-  currentRole = null;
+  writeSession(null);
+  currentRole = null; currentCustomer = null;
   document.body.classList.remove("role-cliente", "role-admin");
-  document.getElementById("login-form").reset();
+  ["login-form", "customer-login-form", "customer-register-form"].forEach((id) => {
+    const f = document.getElementById(id); if (f) f.reset();
+  });
   document.getElementById("login-error").hidden = true;
+  document.getElementById("cl-error").hidden = true;
+  // Restaura a tela de login no estado inicial: aba "Sou cliente", modo "Entrar".
+  document.querySelectorAll(".auth-tab").forEach((t) => t.classList.toggle("active", t.dataset.authtab === "cliente"));
+  document.getElementById("auth-cliente").hidden = false;
+  document.getElementById("auth-admin").hidden = true;
+  document.querySelectorAll(".cli-mode").forEach((b) => b.classList.toggle("active", b.dataset.climode === "entrar"));
+  document.getElementById("customer-login-form").hidden = false;
+  document.getElementById("customer-register-form").hidden = true;
   document.getElementById("login-gate").hidden = false;
 }
 
@@ -2265,12 +2357,32 @@ function renderAll() {
 }
 
 function bindEvents() {
+  // Alterna entre "Sou cliente" e "Sou a loja"
+  document.querySelectorAll(".auth-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".auth-tab").forEach((t) => t.classList.toggle("active", t === tab));
+      document.getElementById("auth-cliente").hidden = tab.dataset.authtab !== "cliente";
+      document.getElementById("auth-admin").hidden = tab.dataset.authtab !== "admin";
+    });
+  });
+  // Alterna entre "Entrar" e "Criar conta" do cliente
+  document.querySelectorAll(".cli-mode").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".cli-mode").forEach((b) => b.classList.toggle("active", b === btn));
+      const criar = btn.dataset.climode === "criar";
+      document.getElementById("customer-login-form").hidden = criar;
+      document.getElementById("customer-register-form").hidden = !criar;
+      document.getElementById("cl-error").hidden = true;
+    });
+  });
+
+  // Login da loja (admin)
   document.getElementById("login-form").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const user = document.getElementById("login-user").value.trim().toLowerCase();
     const pass = document.getElementById("login-pass").value;
     const errorEl = document.getElementById("login-error");
-    if (doLogin(user, pass)) {
+    if (user === "admin" && doAdminLogin(pass)) {
       document.getElementById("login-form").reset();
       errorEl.hidden = true;
     } else {
@@ -2278,11 +2390,41 @@ function bindEvents() {
       errorEl.hidden = false;
     }
   });
+
+  // Login do cliente
+  document.getElementById("customer-login-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const err = document.getElementById("cl-error");
+    const ok = doCustomerLogin(
+      document.getElementById("cl-login-id").value,
+      document.getElementById("cl-login-pass").value);
+    if (ok) { document.getElementById("customer-login-form").reset(); err.hidden = true; }
+    else { err.textContent = "E-mail/telefone ou senha incorretos."; err.hidden = false; }
+  });
+
+  // Cadastro do cliente
+  document.getElementById("customer-register-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const err = document.getElementById("cl-error");
+    if (!document.getElementById("cl-reg-consent").checked) {
+      err.textContent = "Marque o aceite da Política de Privacidade."; err.hidden = false; return;
+    }
+    const res = doCustomerRegister({
+      name: document.getElementById("cl-reg-name").value,
+      phone: document.getElementById("cl-reg-phone").value,
+      email: document.getElementById("cl-reg-email").value,
+      pass: document.getElementById("cl-reg-pass").value,
+    });
+    if (res.ok) { document.getElementById("customer-register-form").reset(); err.hidden = true; }
+    else { err.textContent = res.msg; err.hidden = false; }
+  });
+  attachPhoneMask(document.getElementById("cl-reg-phone"));
+
+  // Botões de demonstração
   document.querySelectorAll(".login-demo-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.getElementById("login-user").value = btn.dataset.user;
-      document.getElementById("login-pass").value = btn.dataset.pass;
-      doLogin(btn.dataset.user, btn.dataset.pass);
+      if (btn.dataset.user === "admin") doAdminLogin(ACCOUNTS.admin.password);
+      else { writeSession("cliente-demo"); enterAs("cliente"); }
     });
   });
   document.getElementById("btn-logout").addEventListener("click", logout);
@@ -2396,7 +2538,7 @@ function bindEvents() {
   });
   document.getElementById("btn-clear-data").addEventListener("click", () => {
     if (!confirm("Apagar TODOS os produtos, vendas e promoções? Essa ação não tem volta.")) return;
-    db.products = []; db.sales = []; db.promos = []; db.subscribers = [];
+    db.products = []; db.sales = []; db.promos = []; db.subscribers = []; db.customers = [];
     saveDB();
     state.cart = [];
     renderAll();
@@ -2423,6 +2565,6 @@ document.getElementById("cfg-email").value = db.settings.email || "";
 renderAll();
 
 // Restaura a sessão salva; sem sessão válida, mostra a tela de login.
-const savedSession = readSession();
-if (savedSession && ACCOUNTS[savedSession]) applyRole(savedSession);
-else document.getElementById("login-gate").hidden = false;
+if (!restoreSession(readSession())) {
+  document.getElementById("login-gate").hidden = false;
+}

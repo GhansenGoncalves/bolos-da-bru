@@ -759,3 +759,16 @@ body.role-cliente .tabs { display: none; }
 }
 /* Imagens e mídia nunca estouram a largura */
 img, svg, video { max-width: 100%; }
+
+/* ===== Abas do login (cliente / loja) ===== */
+.login-tabs { display: flex; gap: 6px; margin: 4px 0 14px; }
+.login-tabs.sub { margin: 0 0 12px; }
+.auth-tab, .cli-mode {
+  flex: 1; font: inherit; font-weight: 600; font-size: 13.5px; cursor: pointer;
+  padding: 9px 8px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--page); color: var(--text-secondary);
+}
+.auth-tab.active, .cli-mode.active { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+.cli-mode { padding: 7px; font-size: 13px; }
+.auth-pane[hidden] { display: none; }
+.cli-form[hidden] { display: none; }

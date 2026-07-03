@@ -406,6 +406,41 @@ test.describe("Loja (visão do cliente)", () => {
     await expect(orderRow).toContainText("A receber");
   });
 
+  test("fluxo Pix completo: cliente vê a chave, avisa e o admin confirma", async ({ page }) => {
+    await openApp(page);
+    // Admin cadastra a chave Pix
+    await goTo(page, "dicas");
+    await page.fill("#cfg-pix-key", "bru@pix.com");
+    await page.fill("#cfg-pix-name", "Bruna Confeitaria");
+    await page.click("#btn-save-config");
+
+    // Cliente faz um pedido pagando por Pix
+    await goTo(page, "loja");
+    await page.locator(".shop-item", { hasText: "Prestígio" })
+      .getByRole("button", { name: /Adicionar um pote/ }).click();
+    await page.fill("#shop-name", "Cliente Pix");
+    await page.fill("#shop-phone", "(11) 93333-2222");
+    await page.check('input[name="shop-payment"][value="Pix"]');
+    await page.click(".shop-submit");
+
+    // A confirmação mostra a chave Pix e o recebedor
+    const conf = page.locator("#shop-confirmation");
+    await expect(conf).toContainText("Pague por Pix");
+    await expect(conf.locator(".pix-key")).toHaveText("bru@pix.com");
+    await expect(conf).toContainText("Bruna Confeitaria");
+
+    // Cliente avisa que pagou
+    await conf.getByRole("button", { name: "Já fiz o Pix" }).click();
+    await expect(conf).toContainText("Você avisou que pagou");
+
+    // Admin vê "Cliente avisou" e confirma o recebimento
+    await goTo(page, "vendas");
+    const orderRow = page.locator("#orders-table tbody tr", { hasText: "Cliente Pix" });
+    await expect(orderRow).toContainText("Cliente avisou");
+    await orderRow.getByRole("button", { name: "Confirmar pagamento" }).click();
+    await expect(page.locator("#orders-table tbody tr", { hasText: "Cliente Pix" })).toContainText("Pago");
+  });
+
   test("loja exige contato antes de enviar o pedido", async ({ page }) => {
     await openApp(page);
     await goTo(page, "loja");
@@ -601,7 +636,7 @@ test.describe("Dicas e dados", () => {
     await goTo(page, "dicas");
     await page.fill("#cfg-whatsapp", "5511999998888");
     await page.click("#btn-save-config");
-    await expect(page.locator("#toast")).toContainText("WhatsApp da loja salvo");
+    await expect(page.locator("#toast")).toContainText("Configurações da loja salvas");
 
     await goTo(page, "loja");
     await page.locator(".shop-item", { hasText: "Prestígio" })

@@ -356,8 +356,14 @@
         <h2>Configurações da loja</h2>
         <label class="field"><span>WhatsApp da loja (com código do país e DDD, só números)</span>
           <input type="tel" id="cfg-whatsapp" maxlength="15" placeholder="5511999998888"></label>
+        <div class="field-row">
+          <label class="field"><span>Chave Pix</span>
+            <input type="text" id="cfg-pix-key" maxlength="80" placeholder="CPF, e-mail, telefone ou chave aleatória"></label>
+          <label class="field"><span>Nome do recebedor</span>
+            <input type="text" id="cfg-pix-name" maxlength="60" placeholder="Nome que aparece no Pix"></label>
+        </div>
         <button class="btn primary" id="btn-save-config">Salvar configurações</button>
-        <p class="card-sub" style="margin-top:10px">Com o número salvo, o botão "Enviar resumo no WhatsApp" da Loja manda o pedido do cliente direto para você — é assim que pedidos feitos no celular do cliente chegam até a sua loja.</p>
+        <p class="card-sub" style="margin-top:10px">Com o WhatsApp salvo, o resumo do pedido chega até você. Com a chave Pix, o cliente vê a chave e o valor na confirmação do pedido e pode pagar na hora.</p>
       </article>
 
       <article class="card danger-zone">

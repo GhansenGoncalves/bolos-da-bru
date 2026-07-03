@@ -234,7 +234,7 @@ const db = {
   sales: [],
   promos: [],
   subscribers: [],
-  settings: { whatsapp: "" },
+  settings: { whatsapp: "", pixKey: "", pixName: "" },
 };
 
 function saveDB() {
@@ -260,7 +260,7 @@ function loadDB() {
     db.sales = data.sales || [];
     db.promos = data.promos || [];
     db.subscribers = data.subscribers || [];
-    db.settings = Object.assign({ whatsapp: "" }, data.settings);
+    db.settings = Object.assign({ whatsapp: "", pixKey: "", pixName: "" }, data.settings);
   } catch { /* dados corrompidos: recomeça vazio */ }
 }
 
@@ -1178,12 +1178,11 @@ function renderOrders() {
     const contact = [o.customer?.phone, o.customer?.address].filter(Boolean).join(" · ") || "—";
 
     // Pagamento: o cliente já escolheu a forma; aqui o admin só visualiza e confirma.
-    const payCell = el("td", {}, [
-      el("span", {}, o.payment || "—"),
-      o.paid
-        ? el("span", { class: "badge good" }, "Pago")
-        : el("span", { class: "badge warning" }, "A receber"),
-    ]);
+    let payBadge;
+    if (o.paid) payBadge = el("span", { class: "badge good" }, "Pago");
+    else if (o.paymentInformed) payBadge = el("span", { class: "badge serious" }, "Cliente avisou");
+    else payBadge = el("span", { class: "badge warning" }, "A receber");
+    const payCell = el("td", {}, [el("span", {}, o.payment || "—"), payBadge]);
 
     const actions = [];
     if (!o.paid) {
@@ -1866,23 +1865,105 @@ function submitShopOrder(ev) {
   // a data padrão (o reset() zera o campo de data).
   document.getElementById("shop-form").reset();
   renderAll();
-  const confirmation = document.getElementById("shop-confirmation");
-  confirmation.textContent = "";
-  confirmation.hidden = false;
-  confirmation.append(
-    el("div", { class: "tip good" }, [
-      el("span", { class: "tip-icon" }, icon("check")),
-      el("div", {}, [
-        el("h3", {}, "Pedido enviado!"),
-        el("p", {}, `Obrigada, ${name}! Seu pedido para ${fmtDateBR(dueDate)} entrou na fila de produção. Pagamento por ${payment}${payment === "Pix" ? " — assim que enviar o Pix, confirmamos o recebimento" : " — combinado na entrega"}. Mande o resumo no nosso WhatsApp:`),
-        el("a", {
-          class: "btn", target: "_blank", rel: "noopener",
-          href: `https://wa.me/${db.settings.whatsapp || ""}?text=` + encodeURIComponent(summary),
-        }, "Enviar resumo no WhatsApp"),
-      ]),
-    ]),
-  );
+  renderShopConfirmation(sale, summary);
   toast("Pedido registrado! Ele já aparece nas encomendas abertas.");
+}
+
+/* Copia um texto para a área de transferência, com retorno de sucesso. */
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = el("textarea", { style: "position:fixed;opacity:0" });
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+}
+
+/* O cliente avisa que já pagou (ex.: enviou o Pix). O admin ainda confirma
+   o recebimento — este é só o aviso do cliente. */
+function markOrderInformed(saleId) {
+  const sale = db.sales.find((s) => s.id === saleId);
+  if (!sale || sale.paid || sale.paymentInformed) return;
+  sale.paymentInformed = true;
+  saveDB();
+  renderAll();
+  const found = db.sales.find((s) => s.id === saleId);
+  if (found) renderShopConfirmation(found);
+  toast("Obrigada! Vamos conferir e confirmar seu pagamento.");
+}
+
+/* Tela de confirmação do pedido (visão do cliente): resumo + pagamento. */
+function renderShopConfirmation(sale, summary) {
+  const box = document.getElementById("shop-confirmation");
+  box.textContent = "";
+  box.hidden = false;
+
+  const wa = summary
+    ? `https://wa.me/${db.settings.whatsapp || ""}?text=` + encodeURIComponent(summary)
+    : null;
+
+  // Bloco de pagamento conforme a forma escolhida
+  const payBox = el("div", { class: "pay-box" });
+  if (sale.paid) {
+    payBox.classList.add("paid");
+    payBox.append(
+      el("div", { class: "pay-box-head" }, [icon("check"), el("strong", {}, "Pagamento confirmado")]),
+      el("p", {}, "Recebemos o seu pagamento. Obrigada!"),
+    );
+  } else if (sale.payment === "Pix") {
+    payBox.append(el("div", { class: "pay-box-head" }, [
+      icon("card"), el("strong", {}, `Pague por Pix · ${fmtMoney(saleTotal(sale))}`),
+    ]));
+    if (db.settings.pixKey) {
+      const keyRow = el("div", { class: "pix-key-row" }, [
+        el("code", { class: "pix-key" }, db.settings.pixKey),
+        el("button", {
+          class: "btn small", type: "button",
+          onclick: async (ev) => {
+            const ok = await copyToClipboard(db.settings.pixKey);
+            ev.target.textContent = ok ? "Copiado!" : "Copie manualmente";
+            toast(ok ? "Chave Pix copiada!" : "Não foi possível copiar — selecione a chave.");
+          },
+        }, "Copiar chave"),
+      ]);
+      payBox.append(keyRow);
+      if (db.settings.pixName) payBox.append(el("p", { class: "pix-name" }, `Recebedor: ${db.settings.pixName}`));
+    } else {
+      payBox.append(el("p", {}, "Combine o Pix com a gente pelo WhatsApp — te passamos a chave na hora."));
+    }
+    if (sale.paymentInformed) {
+      payBox.append(el("p", { class: "pay-informed" }, "✓ Você avisou que pagou. Estamos conferindo!"));
+    } else {
+      payBox.append(el("button", {
+        class: "btn primary", type: "button", onclick: () => markOrderInformed(sale.id),
+      }, "Já fiz o Pix"));
+    }
+  } else {
+    payBox.append(
+      el("div", { class: "pay-box-head" }, [icon("truck"), el("strong", {}, `Pague na ${sale.customer?.address ? "entrega" : "retirada"}`)]),
+      el("p", {}, `${sale.payment} · ${fmtMoney(saleTotal(sale))}. Você paga quando receber o pedido.`),
+    );
+  }
+
+  const children = [
+    el("div", { class: "conf-head" }, [icon("check"), el("h3", {}, "Pedido enviado!")]),
+    el("p", {}, `Obrigada, ${sale.customer?.name || ""}! Seu pedido para ${fmtDateBR(sale.deliveryDate)} entrou na fila de produção.`),
+    payBox,
+  ];
+  if (wa) {
+    children.push(el("a", {
+      class: "btn wa-btn", target: "_blank", rel: "noopener", href: wa,
+    }, "Enviar resumo no WhatsApp"));
+  }
+  box.append(el("div", { class: "tip good conf-card" }, [el("div", {}, children)]));
 }
 
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
@@ -1912,10 +1993,12 @@ function trackOrders() {
   for (const s of found) {
     const info = statusInfo[s.status] || statusInfo.pendente;
     const items = s.items.map((it) => `${it.qty}× ${it.name}`).join(", ");
-    const payBadge = s.paid
-      ? el("span", { class: "badge good" }, "Pagamento confirmado")
-      : el("span", { class: "badge warning" }, `Aguardando pagamento (${s.payment})`);
-    box.append(el("div", { class: "track-item" }, [
+    let payBadge;
+    if (s.paid) payBadge = el("span", { class: "badge good" }, "Pagamento confirmado");
+    else if (s.paymentInformed) payBadge = el("span", { class: "badge serious" }, "Pagamento em conferência");
+    else payBadge = el("span", { class: "badge warning" }, `Aguardando pagamento (${s.payment})`);
+
+    const rowChildren = [
       el("div", { class: "track-item-head" }, [
         el("span", { class: `badge ${info.cls}` }, info.label),
         payBadge,
@@ -1924,7 +2007,15 @@ function trackOrders() {
       ]),
       el("div", { class: "track-item-body" }, items),
       el("strong", {}, fmtMoney(saleTotal(s))),
-    ]));
+    ];
+    // Pedido no Pix ainda não pago: o cliente pode avisar que pagou.
+    if (!s.paid && !s.paymentInformed && s.payment === "Pix" && s.status !== "cancelled") {
+      rowChildren.push(el("button", {
+        class: "btn small track-inform", type: "button",
+        onclick: () => { markOrderInformed(s.id); trackOrders(); },
+      }, "Já fiz o Pix"));
+    }
+    box.append(el("div", { class: "track-item" }, rowChildren));
   }
 }
 
@@ -2137,11 +2228,11 @@ function bindEvents() {
   document.getElementById("btn-save-config").addEventListener("click", () => {
     const digits = document.getElementById("cfg-whatsapp").value.replace(/\D/g, "");
     db.settings.whatsapp = digits;
+    db.settings.pixKey = document.getElementById("cfg-pix-key").value.trim();
+    db.settings.pixName = document.getElementById("cfg-pix-name").value.trim();
     document.getElementById("cfg-whatsapp").value = digits;
     saveDB();
-    toast(digits
-      ? "WhatsApp da loja salvo. Os pedidos da Loja agora chegam no seu número."
-      : "WhatsApp removido das configurações.");
+    toast("Configurações da loja salvas.");
   });
   document.getElementById("btn-clear-data").addEventListener("click", () => {
     if (!confirm("Apagar TODOS os produtos, vendas e promoções? Essa ação não tem volta.")) return;
@@ -2162,6 +2253,8 @@ bindEvents();
 resetPromoForm();
 updateSaleFormUI();
 document.getElementById("cfg-whatsapp").value = db.settings.whatsapp || "";
+document.getElementById("cfg-pix-key").value = db.settings.pixKey || "";
+document.getElementById("cfg-pix-name").value = db.settings.pixName || "";
 renderAll();
 
 // Restaura a sessão salva; sem sessão válida, mostra a tela de login.

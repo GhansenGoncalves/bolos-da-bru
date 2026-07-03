@@ -269,6 +269,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; }
 .badge.good::before { background: var(--status-good); }
 .badge.warning::before { background: var(--status-warning); }
+.badge.serious::before { background: var(--status-serious); }
 .badge.critical::before { background: var(--status-critical); }
 .badge.neutral::before { background: var(--text-muted); }
 
@@ -655,3 +656,31 @@ body.role-cliente .tabs { display: none; }
 .order-actions { white-space: nowrap; }
 .order-actions .btn { margin-bottom: 3px; }
 .track-item-head { flex-wrap: wrap; gap: 6px; }
+
+/* ===== Bloco de pagamento na confirmação do pedido (loja) ===== */
+.conf-head { display: flex; align-items: center; gap: 8px; }
+.conf-head .tip-icon, .conf-head svg { color: var(--berry); width: 22px; height: 22px; }
+.conf-card .wa-btn {
+  display: inline-block; margin-top: 10px; text-decoration: none;
+  background: #25d366; border-color: #25d366; color: #fff;
+}
+.pay-box {
+  border: 1px solid var(--line, var(--border)); border-radius: 12px;
+  padding: 12px 14px; margin: 12px 0; background: var(--card, var(--surface-1));
+}
+.pay-box.paid { border-color: var(--status-good); }
+.pay-box-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pay-box-head svg { width: 20px; height: 20px; color: var(--berry); }
+.pay-box p { margin: 4px 0; font-size: 13.5px; color: var(--cocoa-soft, var(--text-secondary)); }
+.pix-key-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.pix-key {
+  flex: 1; min-width: 160px; font-size: 14px; padding: 8px 10px; border-radius: 8px;
+  background: var(--input-bg, #fff); border: 1px dashed var(--berry);
+  color: var(--cocoa, var(--text-primary)); word-break: break-all;
+}
+.pix-name { font-size: 12.5px; }
+.pay-informed { color: var(--status-good); font-weight: 600; }
+.pay-box .btn.primary {
+  margin-top: 8px; background: var(--berry); border-color: var(--berry); color: #fff;
+}
+.track-inform { margin-top: 8px; align-self: flex-start; }

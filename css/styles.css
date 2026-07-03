@@ -212,20 +212,22 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .tooltip .tt-label { color: var(--text-secondary); }
 
 /* ===== Formulários ===== */
-.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
 .field span { font-size: 12.5px; color: var(--text-secondary); }
-.field input, .field select {
+.field input, .field select, .field textarea {
   font: inherit; padding: 9px 11px; border-radius: 8px;
   border: 1.5px solid var(--input-border); background: var(--input-bg);
   color: var(--text-primary);
+  width: 100%; min-width: 0; max-width: 100%;
 }
-.field input::placeholder { color: var(--text-muted); }
-.field input:focus, .field select:focus {
+.field textarea { resize: vertical; line-height: 1.4; }
+.field input::placeholder, .field textarea::placeholder { color: var(--text-muted); }
+.field input:focus, .field select:focus, .field textarea:focus {
   outline: none; border-color: var(--series-1);
   box-shadow: 0 0 0 3px var(--accent-wash);
 }
 .field-row { display: flex; gap: 10px; }
-.field-row .field { flex: 1; }
+.field-row .field { flex: 1; min-width: 0; }
 .form-actions { display: flex; gap: 8px; }
 
 /* Campo monetário com prefixo R$ */

@@ -707,3 +707,28 @@ test.describe("Dicas e dados", () => {
     expect(bg).toBe("rgb(13, 13, 13)"); // --page do tema escuro
   });
 });
+
+test.describe("Responsividade", () => {
+  const noOverflow = () => ({
+    // a página não pode rolar horizontalmente (tabelas largas rolam só dentro
+    // do próprio contêiner)
+    ok: document.documentElement.scrollWidth <= window.innerWidth + 1,
+    doc: document.documentElement.scrollWidth,
+    win: window.innerWidth,
+  });
+
+  test("não há rolagem horizontal no celular (loja e vendas)", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.goto("/");
+    await loginAs(page, "admin");
+    await page.click("#btn-load-demo");
+
+    await goTo(page, "vendas");
+    let r = await page.evaluate(noOverflow);
+    expect(r.ok, `Vendas estourou: doc ${r.doc} > win ${r.win}`).toBeTruthy();
+
+    await goTo(page, "loja");
+    r = await page.evaluate(noOverflow);
+    expect(r.ok, `Loja estourou: doc ${r.doc} > win ${r.win}`).toBeTruthy();
+  });
+});

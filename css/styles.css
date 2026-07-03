@@ -130,9 +130,14 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 @media (max-width: 900px) {
   .grid-2, .grid-sale, .grid-side { grid-template-columns: 1fr; }
 }
+/* Itens de grid/flex precisam poder encolher abaixo do conteúdo, para que as
+   tabelas largas rolem dentro do próprio contêiner em vez de esticar a página. */
+.grid-2 > *, .grid-sale > *, .grid-side > *,
+.shop-layout > *, .shop-account > * { min-width: 0; }
 .card {
   background: var(--surface-1); border: 1px solid var(--border);
   border-radius: 12px; padding: 16px 18px; margin-bottom: 14px;
+  min-width: 0;
 }
 .card h2 { font-size: 15px; margin: 0 0 2px; }
 .card-sub { font-size: 12.5px; color: var(--text-muted); margin: 0 0 12px; }
@@ -255,7 +260,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .table td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table tr:hover td { background: var(--accent-wash); }
-.table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+.table-scroll { overflow-x: auto; max-height: 520px; overflow-y: auto; min-width: 0; max-width: 100%; }
 #sales-table { min-width: 720px; }
 #sales-table td:first-child { white-space: nowrap; }
 #sales-table td:nth-child(2) { min-width: 220px; }
@@ -274,15 +279,15 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .badge.neutral::before { background: var(--text-muted); }
 
 /* ===== Venda ===== */
-.sale-add-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; }
-.sale-add-row .grow { flex: 1; margin-bottom: 0; }
+.sale-add-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 14px; flex-wrap: wrap; }
+.sale-add-row .grow { flex: 1 1 180px; min-width: 0; margin-bottom: 0; }
 .sale-add-row .qty { width: 74px; margin-bottom: 0; }
 .sale-add-row .btn { height: 38px; }
 .sale-footer { margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
 .pay-methods { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; display: flex; gap: 14px; flex-wrap: wrap; }
 .pay-methods legend { font-size: 12.5px; color: var(--text-secondary); padding: 0 4px; }
 .pay-methods label { display: inline-flex; gap: 5px; align-items: center; font-size: 14px; }
-.sale-totals { margin-left: auto; min-width: 220px; }
+.sale-totals { margin-left: auto; min-width: 220px; flex: 1 1 220px; }
 .sale-totals .line { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; }
 .sale-totals .line.discount strong { color: var(--delta-good); }
 .sale-totals .line.total { font-size: 17px; border-top: 1px solid var(--baseline); padding-top: 6px; margin-top: 6px; }
@@ -732,3 +737,23 @@ body.role-cliente .tabs { display: none; }
 .modal-body { padding: 8px 20px 20px; overflow-y: auto; }
 .modal-body h3 { font-size: 14px; margin: 14px 0 2px; }
 .modal-body p { font-size: 13.5px; color: var(--text-secondary); margin: 4px 0; line-height: 1.5; }
+
+/* ===== Telas pequenas (celular) ===== */
+@media (max-width: 560px) {
+  main { padding: 14px 14px 48px; }
+  /* o "sangramento" da vitrine (admin) precisa casar com o padding do main */
+  .shop-canvas { margin: 8px -14px -48px; padding: 8px 14px 40px; }
+  .topbar { padding: 12px 14px; }
+  .brand h1 { font-size: 16px; }
+  .field-row { flex-direction: column; gap: 0; }
+  .sale-footer { flex-direction: column; gap: 12px; }
+  .sale-totals { margin-left: 0; width: 100%; }
+  .shop-track-row { flex-wrap: wrap; }
+  .shop-track-row .btn { width: 100%; }
+  .shop-hero h2 { font-size: 30px; }
+  .shop-hero { padding: 22px 6px 18px; }
+  .modal-card { max-height: 88vh; }
+  .kpi .value { font-size: 24px; }
+}
+/* Imagens e mídia nunca estouram a largura */
+img, svg, video { max-width: 100%; }

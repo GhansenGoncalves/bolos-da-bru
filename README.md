@@ -1,6 +1,6 @@
 # 🍰 Bolos da Bru — Gestão de vendas de bolo no pote
 
-[![Testes E2E](https://github.com/GhansenGoncalves/portifolioGHG/actions/workflows/tests.yml/badge.svg)](https://github.com/GhansenGoncalves/portifolioGHG/actions/workflows/tests.yml)
+[![Testes E2E](https://github.com/ghansengoncalves/bolos-da-bru/actions/workflows/tests.yml/badge.svg)](https://github.com/ghansengoncalves/bolos-da-bru/actions/workflows/tests.yml)
 
 Sistema web completo para o dia a dia de uma loja de bolo no pote: dashboard
 com indicadores, vendas de **balcão**, **delivery** (com taxa de entrega) e
@@ -109,11 +109,9 @@ O sistema funciona 100% no navegador, sem servidor. Isso significa:
 
 ### Hospedagem (GitHub Pages)
 
-1. Faça o merge deste projeto na branch `main`.
-2. No GitHub: **Settings → Pages → Source: Deploy from a branch → `main`**.
-3. O sistema fica no ar em
-   `https://<seu-usuario>.github.io/portifolioGHG/bolos-da-bru/` — grátis e
-   com HTTPS. Divulgue esse link para os clientes usarem a aba 🛍 Loja.
+O sistema está no ar em <https://ghansengoncalves.github.io/bolos-da-bru/> —
+grátis e com HTTPS (Settings → Pages → Source: Deploy from a branch → `main`,
+pasta raiz). Esse é o link divulgado para os clientes usarem a aba 🛍 Loja.
 
 ## Testes automatizados
 

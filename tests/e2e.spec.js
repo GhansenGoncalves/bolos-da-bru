@@ -9,9 +9,18 @@ const { test, expect } = require("@playwright/test");
 
 const STORE_KEY = "bolosdabru-v1";
 
+/* Sem barreira de login, quem chega em "/" já entra como visitante e o
+   painel de login fica fechado — #btn-logout funciona como "Entrar" nesse
+   estado e reabre o painel. */
+async function openLoginGate(page) {
+  await page.click("#btn-logout");
+  await expect(page.locator("#login-gate")).toBeVisible();
+}
+
 /* Faz login pelo perfil desejado (admin por padrão). O cliente entra pelo
    atalho de demonstração; o admin, pela aba "Sou a loja". */
 async function loginAs(page, role = "admin") {
+  await openLoginGate(page);
   if (role === "cliente") {
     await page.click('.login-demo-btn[data-user="cliente"]');
   } else {
@@ -61,6 +70,7 @@ async function stockOf(page, name) {
 test.describe("Acesso e permissões", () => {
   test("login inválido mostra erro", async ({ page }) => {
     await page.goto("/");
+    await openLoginGate(page);
     await page.click('.auth-tab[data-authtab="admin"]');
     await page.fill("#login-user", "admin");
     await page.fill("#login-pass", "senhaerrada");
@@ -113,6 +123,7 @@ test.describe("Acesso e permissões", () => {
 
   test("atalho de conta de demonstração entra com um clique", async ({ page }) => {
     await page.goto("/");
+    await openLoginGate(page);
     await page.click('.auth-tab[data-authtab="admin"]');
     await page.click('.login-demo-btn[data-user="admin"]');
     await expect(page.locator("#login-gate")).toBeHidden();
@@ -121,6 +132,7 @@ test.describe("Acesso e permissões", () => {
 
   test("cliente cria conta, entra e a sessão persiste", async ({ page }) => {
     await page.goto("/");
+    await openLoginGate(page);
     // Aba cliente já vem ativa; alterna para "Criar conta"
     await page.click('.cli-mode[data-climode="criar"]');
     await page.fill("#cl-reg-name", "Ana Cliente");
@@ -144,6 +156,7 @@ test.describe("Acesso e permissões", () => {
 
   test("cadastro valida e-mail e evita conta duplicada", async ({ page }) => {
     await page.goto("/");
+    await openLoginGate(page);
     await page.click('.cli-mode[data-climode="criar"]');
     // E-mail inválido
     await page.fill("#cl-reg-name", "Bruno");
@@ -158,6 +171,7 @@ test.describe("Acesso e permissões", () => {
 
   test("cliente entra com a conta criada por e-mail e senha", async ({ page }) => {
     await page.goto("/");
+    await openLoginGate(page);
     // Cria a conta
     await page.click('.cli-mode[data-climode="criar"]');
     await page.fill("#cl-reg-name", "Clara");
@@ -166,7 +180,10 @@ test.describe("Acesso e permissões", () => {
     await page.fill("#cl-reg-pass", "minhasenha");
     await page.check("#cl-reg-consent");
     await page.click("#customer-register-form .login-submit");
+    // Conta real criada: o botão agora faz logout de verdade e volta a
+    // navegar como visitante — precisa reabrir o painel para entrar de novo.
     await page.click("#btn-logout");
+    await openLoginGate(page);
 
     // Entra de novo com e-mail + senha
     await page.fill("#cl-login-id", "clara@exemplo.com");
@@ -469,6 +486,50 @@ test.describe("Loja (visão do cliente)", () => {
     await expect(orderRow).toContainText("A receber");
   });
 
+  test("carrinho da loja respeita o estoque de sabores prontos, mas não limita sob encomenda", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+
+    // "Prestígio" tem 3 potes prontos no seed: o quarto clique é bloqueado.
+    const prestigioCard = page.locator(".shop-item", { hasText: "Prestígio" });
+    const addPrestigio = prestigioCard.getByRole("button", { name: /Adicionar um pote/ });
+    await addPrestigio.click();
+    await addPrestigio.click();
+    await addPrestigio.click();
+    await addPrestigio.click();
+    await expect(prestigioCard.locator(".shop-qty")).toHaveText("3");
+    await expect(page.locator("#toast")).toContainText("Só temos 3 pote");
+
+    // "Maracujá" está esgotado no seed (sob encomenda): sem limite de quantidade.
+    const maracujaCard = page.locator(".shop-item", { hasText: "Maracujá" });
+    const addMaracuja = maracujaCard.getByRole("button", { name: /Adicionar um pote/ });
+    for (let i = 0; i < 5; i++) await addMaracuja.click();
+    await expect(maracujaCard.locator(".shop-qty")).toHaveText("5");
+  });
+
+  test("admin define a taxa de entrega de um pedido feito na loja", async ({ page }) => {
+    await openApp(page);
+    await goTo(page, "loja");
+    await page.locator(".shop-item", { hasText: "Prestígio" })
+      .getByRole("button", { name: /Adicionar um pote/ }).click();
+    await page.fill("#shop-name", "Diego Souza");
+    await page.fill("#shop-phone", "(11) 91234-5678");
+    await page.check('input[name="shop-fulfil"][value="entrega"]');
+    await page.fill("#shop-address", "Rua das Flores, 22");
+    await page.check("#shop-consent");
+    await page.click(".shop-submit");
+
+    await goTo(page, "vendas");
+    const orderRow = page.locator("#orders-table tbody tr", { hasText: "Diego Souza" });
+    // Pedidos feitos na loja sempre chegam sem taxa de entrega.
+    await expect(orderRow.locator("td").nth(4)).toHaveText("R$ 14,00");
+
+    page.on("dialog", (d) => d.accept("8,00"));
+    await orderRow.getByRole("button", { name: "Taxa de entrega" }).click();
+    await expect(page.locator("#toast")).toContainText("Taxa de entrega");
+    await expect(orderRow.locator("td").nth(4)).toHaveText("R$ 22,00");
+  });
+
   test("fluxo Pix completo: cliente vê a chave, avisa e o admin confirma", async ({ page }) => {
     await openApp(page);
     // Admin cadastra a chave Pix
@@ -515,11 +576,13 @@ test.describe("Loja (visão do cliente)", () => {
     await expect(page.locator("#toast")).toContainText("Informe seu nome e telefone");
   });
 
-  test("mostra depoimentos de clientes", async ({ page }) => {
+  test("mostra diferenciais reais da loja, sem depoimentos fabricados", async ({ page }) => {
     await openApp(page);
     await goTo(page, "loja");
-    await expect(page.locator(".shop-reviews .review")).toHaveCount(3);
-    await expect(page.locator(".shop-reviews")).toContainText("Mariana S.");
+    await expect(page.locator(".shop-trust li")).toHaveCount(3);
+    await expect(page.locator(".shop-trust")).toContainText("Feito na hora");
+    // Depoimentos de clientes fictícios foram removidos (não são reais).
+    await expect(page.locator(".shop-reviews")).toHaveCount(0);
   });
 
   test("cliente acompanha o próprio pedido pelo telefone", async ({ page }) => {

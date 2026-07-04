@@ -1140,6 +1140,22 @@ function concludeOrder(saleId) {
   toast(`Encomenda de ${sale.customer?.name || "cliente"} concluída e somada às vendas.`);
 }
 
+/* Pedidos feitos pela Loja sempre chegam com taxa de entrega zerada (o
+   cliente não escolhe o valor). O admin ajusta aqui antes de concluir. */
+function editOrderFee(saleId) {
+  const sale = db.sales.find((s) => s.id === saleId);
+  if (!sale || sale.status !== "pendente") return;
+  const current = sale.deliveryFee || 0;
+  const raw = prompt("Taxa de entrega para este pedido (R$):", current.toFixed(2).replace(".", ","));
+  if (raw === null) return;
+  const value = Number(raw.trim().replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(value) || value < 0) { toast("Valor inválido."); return; }
+  sale.deliveryFee = Math.round(value * 100) / 100;
+  saveDB();
+  renderAll();
+  toast(`Taxa de entrega de ${sale.customer?.name || "cliente"} definida em ${fmtMoney(sale.deliveryFee)}.`);
+}
+
 /* O admin apenas confirma que o pagamento (feito pelo cliente) foi recebido. */
 function markOrderPaid(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
@@ -1201,10 +1217,13 @@ function renderOrders() {
       actions.push(el("button", { class: "btn small", onclick: () => markOrderPaid(o.id) }, "Confirmar pagamento"), " ");
     }
     if (o.customer?.address) {
+      actions.push(el("button", {
+        class: "btn small ghost", onclick: () => editOrderFee(o.id), title: "Definir ou ajustar a taxa de entrega",
+      }, "Taxa de entrega"), " ");
       actions.push(el("a", {
         class: "btn small ghost", target: "_blank", rel: "noopener",
         href: mapsRouteUrl(o.customer.address), title: "Abrir a rota no mapa",
-      }, "🗺 Rota"), " ");
+      }, [icon("map"), " Rota"]), " ");
     }
     actions.push(
       el("button", { class: "btn small", onclick: () => concludeOrder(o.id) }, "Concluir"), " ",
@@ -1743,13 +1762,24 @@ function shopCartLines() {
   });
 }
 
+/* Sabores "prontos" (stock > 0) não podem ser pedidos além do estoque físico;
+   sabores "sob encomenda" (stock === 0) são produzidos para a data, sem limite. */
 function shopAdd(productId, delta) {
+  const product = db.products.find((p) => p.id === productId);
+  if (!product) return;
   const entry = state.shopCart.find((e) => e.productId === productId);
-  if (entry) {
-    entry.qty += delta;
-    if (entry.qty <= 0) state.shopCart = state.shopCart.filter((e) => e !== entry);
-  } else if (delta > 0) {
-    state.shopCart.push({ productId, qty: delta });
+  let next = (entry ? entry.qty : 0) + delta;
+  if (delta > 0 && product.stock > 0 && next > product.stock) {
+    toast(`Só temos ${fmtInt(product.stock)} pote(s) prontos de ${product.name} agora.`);
+    next = product.stock;
+  }
+  next = Math.max(0, next);
+  if (next === 0) {
+    if (entry) state.shopCart = state.shopCart.filter((e) => e !== entry);
+  } else if (entry) {
+    entry.qty = next;
+  } else {
+    state.shopCart.push({ productId, qty: next });
   }
   renderShop();
 }
@@ -1840,6 +1870,17 @@ function renderShop() {
     }
   }
   document.getElementById("shop-total").textContent = fmtMoney(total);
+
+  // Barra fixa de carrinho (só aparece em telas de celular via CSS) para o
+  // cliente ver o total sem precisar rolar até o fim do cardápio.
+  const totalItems = lines.reduce((a, l) => a + l.qty, 0);
+  const mobileBar = document.getElementById("shop-mobile-bar");
+  mobileBar.hidden = lines.length === 0;
+  document.getElementById("shop-mobile-summary").textContent =
+    totalItems ? `${fmtInt(totalItems)} pote(s)` : "";
+  if (totalItems) {
+    document.getElementById("shop-mobile-summary").append(el("strong", {}, fmtMoney(total)));
+  }
 
   const dateInput = document.getElementById("shop-date");
   dateInput.min = todayISO();
@@ -2242,8 +2283,14 @@ function hashPass(str) {
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
 /* Coloca a loja no ar para o perfil informado (admin, cliente-demo ou uma
-   conta de cliente). Prefill dos dados quando é uma conta real. */
-function enterAs(role, customer) {
+   conta de cliente). Prefill dos dados quando é uma conta real.
+   `seedIfEmpty` popula dados de exemplo se o catálogo estiver vazio, para a
+   vitrine do cliente nunca ficar em branco — mas só numa ação explícita de
+   cliente (atalho, login, cadastro). Na entrada automática de visitante (sem
+   sessão salva, ao abrir a página) isso fica desligado, senão o catálogo de
+   demonstração apareceria sozinho antes até da administradora logar e ver o
+   sistema genuinamente vazio no primeiro acesso dela. */
+function enterAs(role, customer, { seedIfEmpty = true } = {}) {
   currentRole = role;
   currentCustomer = customer || null;
   document.body.classList.toggle("role-cliente", role === "cliente");
@@ -2253,8 +2300,12 @@ function enterAs(role, customer) {
     : (customer ? customer.name : "Cliente (visitante)");
   document.getElementById("user-badge").textContent = badge;
   document.getElementById("login-gate").hidden = true;
-  // A vitrine do cliente nunca deve ficar vazia.
-  if (role === "cliente" && !db.products.length) {
+  // Visitante sem conta: o botão reabre o login (não há sessão para encerrar).
+  const isGuest = role === "cliente" && !customer;
+  const logoutBtn = document.getElementById("btn-logout");
+  logoutBtn.textContent = isGuest ? "Entrar" : "Sair";
+  logoutBtn.title = isGuest ? "Entrar com sua conta ou como administradora" : "";
+  if (role === "cliente" && seedIfEmpty && !db.products.length) {
     seedDemoData(); saveDB(); renderAll();
   }
   switchView(role === "cliente" ? "loja" : "dashboard");
@@ -2323,8 +2374,6 @@ function doCustomerRegister({ name, phone, email, pass }) {
 
 function logout() {
   writeSession(null);
-  currentRole = null; currentCustomer = null;
-  document.body.classList.remove("role-cliente", "role-admin");
   ["login-form", "customer-login-form", "customer-register-form"].forEach((id) => {
     const f = document.getElementById(id); if (f) f.reset();
   });
@@ -2337,7 +2386,8 @@ function logout() {
   document.querySelectorAll(".cli-mode").forEach((b) => b.classList.toggle("active", b.dataset.climode === "entrar"));
   document.getElementById("customer-login-form").hidden = false;
   document.getElementById("customer-register-form").hidden = true;
-  document.getElementById("login-gate").hidden = false;
+  // Sem barreira: sair só derruba a sessão e volta a navegar como visitante.
+  enterAs("cliente");
 }
 
 function renderAll() {
@@ -2427,7 +2477,16 @@ function bindEvents() {
       else { writeSession("cliente-demo"); enterAs("cliente"); }
     });
   });
-  document.getElementById("btn-logout").addEventListener("click", logout);
+  // Visitante sem conta: o botão só reabre o login. Quem tem sessão (admin
+  // ou cliente autenticado) sai de verdade.
+  document.getElementById("btn-logout").addEventListener("click", () => {
+    const isGuest = currentRole === "cliente" && !currentCustomer;
+    if (isGuest) document.getElementById("login-gate").hidden = false;
+    else logout();
+  });
+  document.getElementById("login-gate-close").addEventListener("click", () => {
+    document.getElementById("login-gate").hidden = true;
+  });
 
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchView(tab.dataset.view));
@@ -2452,6 +2511,9 @@ function bindEvents() {
   document.getElementById("sale-fee").addEventListener("input", renderCart);
 
   document.getElementById("shop-form").addEventListener("submit", submitShopOrder);
+  document.getElementById("shop-mobile-view").addEventListener("click", () => {
+    document.querySelector(".shop-order-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   document.querySelectorAll('input[name="shop-fulfil"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       const wantsDelivery = document.querySelector('input[name="shop-fulfil"]:checked').value === "entrega";
@@ -2564,7 +2626,10 @@ document.getElementById("cfg-instagram").value = db.settings.instagram || "";
 document.getElementById("cfg-email").value = db.settings.email || "";
 renderAll();
 
-// Restaura a sessão salva; sem sessão válida, mostra a tela de login.
+// Restaura a sessão salva; sem sessão válida, entra direto como visitante —
+// a Loja fica acessível sem tela de bloqueio. O login (cliente ou admin)
+// continua disponível pelo botão "Entrar" no topo. Sem semear dados de
+// exemplo aqui: essa é uma entrada passiva, não uma ação de cliente.
 if (!restoreSession(readSession())) {
-  document.getElementById("login-gate").hidden = false;
+  enterAs("cliente", null, { seedIfEmpty: false });
 }

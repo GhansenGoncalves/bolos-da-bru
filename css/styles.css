@@ -25,6 +25,7 @@
   --accent-wash: rgba(42, 120, 214, 0.10);
   --input-bg: #ffffff;
   --input-border: rgba(11, 11, 11, 0.28);
+  --whatsapp-green: #25d366;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -251,6 +252,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
 .btn.ghost { background: none; }
 .btn.small { padding: 4px 10px; font-size: 12.5px; font-weight: 500; }
 .btn.danger-text { color: var(--status-critical); }
+.btn svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 1px; }
 .hidden { display: none !important; }
 
 /* ===== Tabelas ===== */
@@ -448,6 +450,25 @@ body.role-cliente .shop-canvas {
   .shop-layout .shop-order-card { order: 2; }
 }
 
+/* Barra fixa de carrinho no celular: só existe em telas estreitas — no
+   desktop o card do pedido já fica sticky e sempre visível. */
+.shop-mobile-bar { display: none; }
+@media (max-width: 900px) {
+  .shop-mobile-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 12px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--card); border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(64, 42, 31, 0.14);
+  }
+  .shop-mobile-summary { font-size: 13.5px; color: var(--cocoa); }
+  .shop-mobile-summary strong { font-family: var(--serif); font-size: 16px; color: var(--berry); margin-left: 4px; }
+  /* Espaço para o conteúdo não ficar escondido atrás da barra fixa (a regra
+     de role-cliente tem a mesma especificidade e vem antes no arquivo, então
+     precisa ser repetida aqui para valer no perfil cliente). */
+  .shop-canvas, body.role-cliente .shop-canvas { padding-bottom: 76px; }
+}
+
 /* Cards da vitrine sobre o creme */
 .shop-canvas .card {
   background: var(--card); border: 1px solid var(--line);
@@ -534,30 +555,14 @@ body.role-cliente .shop-canvas {
 #shop-confirmation .tip { border-color: var(--line); border-left-color: var(--berry); background: var(--cream); }
 #shop-confirmation .tip-icon { color: var(--berry); }
 #shop-confirmation .btn {
-  background: #25d366; border-color: #25d366; color: #fff;
+  background: var(--whatsapp-green); border-color: var(--whatsapp-green); color: #fff;
 }
 
-/* Seções da vitrine (depoimentos, acompanhamento, cadastro) */
-.shop-section { margin-top: 34px; text-align: center; }
+/* Seções da vitrine (acompanhamento, cadastro) */
 .shop-section-title {
   font-family: var(--serif); font-size: 24px; font-weight: 600;
   color: var(--cocoa); margin: 2px 0 18px; text-wrap: balance;
 }
-.shop-reviews {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 16px; text-align: left;
-}
-.review {
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
-  padding: 20px; margin: 0; box-shadow: 0 8px 24px rgba(64, 42, 31, 0.06);
-  display: flex; flex-direction: column; gap: 10px;
-}
-.review-stars { color: #e8a33d; letter-spacing: 2px; font-size: 15px; }
-.review blockquote {
-  margin: 0; font-family: var(--serif); font-size: 16px; line-height: 1.5;
-  color: var(--cocoa); font-style: italic;
-}
-.review figcaption { color: var(--cocoa-soft); font-size: 13px; font-weight: 600; margin-top: auto; }
 
 .shop-account {
   display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
@@ -600,9 +605,14 @@ body.role-cliente .shop-canvas {
   .login-gate { background: radial-gradient(120% 90% at 50% 0%, #2c1f17, #1c130e 70%, #140d09); }
 }
 .login-card {
+  position: relative;
   width: 100%; max-width: 360px; background: var(--surface-1);
   border: 1px solid var(--border); border-radius: 18px; padding: 30px 26px;
   box-shadow: 0 20px 50px rgba(64, 42, 31, 0.20); text-align: center;
+}
+.login-gate-close {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 22px; line-height: 1; color: var(--text-muted);
 }
 .login-mark {
   display: inline-flex; align-items: center; justify-content: center;
@@ -669,7 +679,7 @@ body.role-cliente .tabs { display: none; }
 .conf-head .tip-icon, .conf-head svg { color: var(--berry); width: 22px; height: 22px; }
 .conf-card .wa-btn {
   display: inline-block; margin-top: 10px; text-decoration: none;
-  background: #25d366; border-color: #25d366; color: #fff;
+  background: var(--whatsapp-green); border-color: var(--whatsapp-green); color: #fff;
 }
 .pay-box {
   border: 1px solid var(--line, var(--border)); border-radius: 12px;
@@ -743,8 +753,9 @@ body.role-cliente .tabs { display: none; }
 /* ===== Telas pequenas (celular) ===== */
 @media (max-width: 560px) {
   main { padding: 14px 14px 48px; }
-  /* o "sangramento" da vitrine (admin) precisa casar com o padding do main */
-  .shop-canvas { margin: 8px -14px -48px; padding: 8px 14px 40px; }
+  /* o "sangramento" da vitrine (admin) precisa casar com o padding do main;
+     o padding inferior reserva espaço para a barra fixa de carrinho. */
+  .shop-canvas { margin: 8px -14px -48px; padding: 8px 14px 76px; }
   .topbar { padding: 12px 14px; }
   .brand h1 { font-size: 16px; }
   .field-row { flex-direction: column; gap: 0; }

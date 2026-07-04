@@ -10,8 +10,9 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div id="login-gate" class="login-gate">
+  <div id="login-gate" class="login-gate" hidden>
     <div class="login-card">
+      <button type="button" class="modal-close login-gate-close" id="login-gate-close" aria-label="Fechar">×</button>
       <span class="login-mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5.5 11h13l-1.5 8.5a1 1 0 0 1-1 .5H8a1 1 0 0 1-1-.5z"/>
@@ -19,7 +20,7 @@
         </svg>
       </span>
       <h1>Bolos da Bru</h1>
-      <p class="login-sub">Entre para fazer seu pedido</p>
+      <p class="login-sub">Entre com sua conta ou como administradora</p>
 
       <div class="login-tabs" role="tablist">
         <button type="button" class="auth-tab active" data-authtab="cliente">Sou cliente</button>
@@ -58,7 +59,7 @@
         <p id="cl-error" class="login-error" hidden></p>
         <div class="login-demo">
           <button type="button" class="login-demo-btn" data-user="cliente">
-            <strong>Entrar como cliente (demonstração)</strong><span>vê só a loja, sem cadastrar</span></button>
+            <strong>Continuar sem conta</strong><span>ver o cardápio e pedir sem cadastrar</span></button>
         </div>
       </div>
 
@@ -444,6 +445,10 @@
     <!-- ============ LOJA (visão do cliente) ============ -->
     <section id="view-loja" class="view" role="tabpanel">
      <div class="shop-canvas">
+      <div id="shop-mobile-bar" class="shop-mobile-bar" hidden>
+        <span id="shop-mobile-summary" class="shop-mobile-summary"></span>
+        <button type="button" class="btn small primary" id="shop-mobile-view">Ver pedido</button>
+      </div>
       <div class="shop-hero">
         <span class="shop-hero-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -500,28 +505,6 @@
           <div id="shop-grid" class="shop-grid"></div>
         </article>
       </div>
-
-      <section class="shop-section">
-        <p class="shop-eyebrow">Quem já provou</p>
-        <h3 class="shop-section-title">O que dizem nossos clientes</h3>
-        <div class="shop-reviews">
-          <figure class="review">
-            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
-            <blockquote>Melhor bolo no pote que já comi! O de Ninho com Nutella é viciante e chegou fresquinho.</blockquote>
-            <figcaption>Mariana S.</figcaption>
-          </figure>
-          <figure class="review">
-            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
-            <blockquote>Encomendei 30 potes para a festa da escola. Pontualíssima e todo mundo amou.</blockquote>
-            <figcaption>Escola Sol Nascente</figcaption>
-          </figure>
-          <figure class="review">
-            <div class="review-stars" aria-label="5 de 5 estrelas">★★★★★</div>
-            <blockquote>Atendimento pelo WhatsApp super rápido e entrega no horário. Virei cliente fiel!</blockquote>
-            <figcaption>Rafael T.</figcaption>
-          </figure>
-        </div>
-      </section>
 
       <div class="shop-account">
         <article class="card">

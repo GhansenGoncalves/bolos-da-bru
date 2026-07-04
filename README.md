@@ -1,4 +1,4 @@
-# 🍰 Bolos da Bru — Gestão de vendas de bolo no pote
+# Bolos da Bru — Gestão de vendas de bolo no pote
 
 [![Testes E2E](https://github.com/ghansengoncalves/bolos-da-bru/actions/workflows/tests.yml/badge.svg)](https://github.com/ghansengoncalves/bolos-da-bru/actions/workflows/tests.yml)
 
@@ -55,7 +55,7 @@ segue a preferência do sistema: [ver dashboard escuro](docs/screenshots/dashboa
 
 ## Funcionalidades
 
-### 📊 Dashboard
+### Dashboard
 - KPIs do período (receita, vendas, potes, ticket médio, lucro estimado) com
   comparação contra o período anterior, mais o total de encomendas abertas.
 - Filtro de período (hoje / 7 / 30 / 90 dias / tudo) que re-escopa tudo.
@@ -63,7 +63,7 @@ segue a preferência do sistema: [ver dashboard escuro](docs/screenshots/dashboa
   top produtos, dia da semana, formas de pagamento e canais de venda.
 - Modo claro/escuro automático.
 
-### 🛒 Vendas (balcão, delivery e encomenda)
+### Vendas (balcão, delivery e encomenda)
 - Carrinho com múltiplos itens e promoções aplicadas automaticamente.
 - **Balcão**: venda direta, baixa o estoque na hora.
 - **Delivery**: cliente, endereço e taxa de entrega somada ao total (a taxa
@@ -76,18 +76,18 @@ segue a preferência do sistema: [ver dashboard escuro](docs/screenshots/dashboa
 - Histórico completo com canal e cliente, cancelamento com estorno de estoque
   e exportação CSV (backup).
 
-### 🛍 Loja (visão do cliente)
+### Loja (visão do cliente)
 - Cardápio com preços (e preços promocionais), pronta entrega ou sob encomenda.
 - O cliente monta o pedido, escolhe retirada ou entrega e a data — o pedido
   entra direto em "Encomendas abertas".
 - Botão "Enviar resumo no WhatsApp": com o número da loja salvo nas
   Configurações (aba Dicas), o resumo do pedido vai direto para o seu WhatsApp.
 
-### 🧁 Produtos e 🏷️ Promoções
+### Produtos e Promoções
 - Cadastro com preço, custo, margem calculada e alertas de estoque.
 - Promoções em % ou R$, por produto ou gerais, com vigência e status.
 
-### 💡 Dicas
+### Dicas
 - Análises geradas dos seus dados: encomendas atrasadas, produção dos próximos
   dias, estoque esgotado/baixo, margens apertadas, sabores parados, melhores
   dias, ticket médio, Pix e delivery.
@@ -111,7 +111,7 @@ O sistema funciona 100% no navegador, sem servidor. Isso significa:
 
 O sistema está no ar em <https://ghansengoncalves.github.io/bolos-da-bru/> —
 grátis e com HTTPS (Settings → Pages → Source: Deploy from a branch → `main`,
-pasta raiz). Esse é o link divulgado para os clientes usarem a aba 🛍 Loja.
+pasta raiz). Esse é o link divulgado para os clientes usarem a aba Loja.
 
 ## Testes automatizados
 

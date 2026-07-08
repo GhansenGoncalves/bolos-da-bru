@@ -107,6 +107,14 @@ O sistema funciona 100% no navegador, sem servidor. Isso significa:
 - Para pedidos caírem sozinhos no seu painel de qualquer lugar, o próximo passo
   é um banco de dados on-line (ver roteiro na aba Dicas).
 
+### Backend (API)
+
+Existe agora uma API real em [`server/`](server/README.md): autenticação com
+senha em hash + JWT, e todo preço/estoque/desconto recalculado e validado no
+servidor (não mais só no navegador). O frontend acima ainda funciona sozinho
+com `localStorage` — a integração dos dois é o próximo passo, descrito no
+README do backend.
+
 ### Hospedagem (GitHub Pages)
 
 O sistema está no ar em <https://ghansengoncalves.github.io/bolos-da-bru/> —

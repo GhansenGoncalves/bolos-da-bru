@@ -212,21 +212,48 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 
-/* ---------- Persistência ---------- */
+/* ---------- API (autenticação e dados reais no servidor) ---------- */
+
+const API_BASE = window.BOLOS_API_BASE || "http://127.0.0.1:3000/api";
+let authToken = null;
+
+/* Chama a API. Anexa o token de sessão quando existe; o servidor é quem
+   decide o que cada papel pode ver ou fazer — o frontend não tem mais
+   "verdade" nenhuma sobre preço, estoque ou permissão. */
+async function api(path, { method = "GET", body } = {}) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.");
+  }
+  const isJson = (res.headers.get("content-type") || "").includes("application/json");
+  const data = isJson ? await res.json().catch(() => null) : null;
+  if (!res.ok) {
+    const details = data && Array.isArray(data.details) ? data.details.map((d) => d.message).join(" ") : "";
+    const err = new Error((data && data.error) || "Erro inesperado do servidor.");
+    err.status = res.status;
+    err.details = details;
+    throw err;
+  }
+  return data;
+}
+
+/* ---------- Persistência local (só configurações da loja e a lista de
+   novidades — nada que envolva dinheiro, estoque ou login) ---------- */
 
 const STORE_KEY = "bolosdabru-v1";
 const SESSION_KEY = "bolosdabru-session";
 
 const CHANNEL_LABELS = { balcao: "Balcão", delivery: "Delivery", encomenda: "Encomenda" };
 
-/* Perfis de acesso. IMPORTANTE: este login é do lado do cliente (front-end),
-   pensado para separar a vitrine do cliente do painel da administradora e
-   demonstrar controle de permissões. Não é segurança real — para isso é
-   preciso um servidor com autenticação (ver roteiro na aba Dicas). */
-const ACCOUNTS = {
-  admin: { password: "bru2024", role: "admin", name: "Bru · Administradora" },
-  cliente: { password: "cliente123", role: "cliente", name: "Cliente (visitante)" },
-};
 let currentRole = null;
 let currentCustomer = null;
 
@@ -235,7 +262,6 @@ const db = {
   sales: [],
   promos: [],
   subscribers: [],
-  customers: [],
   settings: {
     whatsapp: "", pixKey: "", pixName: "",
     storeName: "", cnpj: "", city: "", instagram: "", email: "",
@@ -248,10 +274,11 @@ const DEFAULT_SETTINGS = {
 };
 
 function saveDB() {
-  // Em ambientes que bloqueiam localStorage (sandbox), o app segue em memória.
-  // Retorna false se não persistiu (ex.: cota cheia por muitas fotos).
+  // Só settings/subscribers moram aqui: produtos, vendas e promoções vivem
+  // no servidor agora. Em ambientes que bloqueiam localStorage (sandbox), o
+  // app segue em memória.
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(db));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ subscribers: db.subscribers, settings: db.settings }));
     return true;
   } catch { return false; }
 }
@@ -261,159 +288,55 @@ function loadDB() {
   try {
     raw = localStorage.getItem(STORE_KEY);
   } catch { /* sem persistência */ }
-  // Primeiro acesso: o sistema começa vazio, pronto para os produtos reais.
-  // Dados de exemplo só entram se a pessoa pedir (botão na tela inicial).
   if (!raw) return;
   try {
     const data = JSON.parse(raw);
-    db.products = data.products || [];
-    db.sales = data.sales || [];
-    db.promos = data.promos || [];
     db.subscribers = data.subscribers || [];
-    db.customers = data.customers || [];
     db.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
   } catch { /* dados corrompidos: recomeça vazio */ }
 }
 
-/* ---------- Dados de demonstração ---------- */
+/* ---------- Dados remotos (produtos, promoções, vendas) ---------- */
 
-function seedDemoData() {
-  // Gerador pseudo-aleatório com semente fixa: os números de demonstração
-  // são estáveis entre recargas.
-  let seed = 42;
-  const rand = () => {
-    seed = (seed * 1103515245 + 12345) % 2147483648;
-    return seed / 2147483648;
+function mapApiProduct(p) {
+  return {
+    id: p.id, name: p.name, price: p.price, cost: p.cost,
+    stock: p.stock, description: p.description, allergens: p.allergens,
+    shelfLife: p.shelfLife, image: p.image,
   };
+}
+function mapApiPromo(p) {
+  return {
+    id: p.id, name: p.name, productId: p.productId, type: p.type,
+    value: p.value, start: p.startDate, end: p.endDate,
+  };
+}
+function mapApiSale(s) {
+  return {
+    id: s.id, dateISO: s.dateISO, time: s.time, payment: s.payment,
+    paid: s.paid, paymentInformed: s.paymentInformed, status: s.status,
+    channel: s.channel, customer: s.customer, deliveryFee: s.deliveryFee,
+    deliveryDate: s.deliveryDate,
+    items: s.items.map((it) => ({
+      productId: it.productId, name: it.name, unitPrice: it.unitPrice,
+      unitCost: it.unitCost, qty: it.qty, discount: it.discount, promoName: it.promoName,
+    })),
+  };
+}
 
-  const dias5 = "5 dias refrigerado";
-  db.products = [
-    { id: "p1", name: "Chocolate com Morango", price: 15.0, cost: 6.5, stock: 14, description: "Massa de chocolate, brigadeiro cremoso e morangos frescos.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
-    { id: "p2", name: "Ninho com Nutella",     price: 17.0, cost: 8.0, stock: 9, description: "Creme de leite Ninho com camadas de Nutella e massa branca.", allergens: "leite, glúten, ovos, avelã", shelfLife: dias5 },
-    { id: "p3", name: "Prestígio",             price: 14.0, cost: 5.8, stock: 3, description: "Massa de chocolate com recheio cremoso de coco.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
-    { id: "p4", name: "Cenoura com Chocolate", price: 13.0, cost: 5.0, stock: 18, description: "Massa de cenoura com brigadeiro de chocolate.", allergens: "glúten, ovos, leite", shelfLife: dias5 },
-    { id: "p5", name: "Maracujá",              price: 14.0, cost: 5.5, stock: 0, description: "Massa branca com mousse de maracujá.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
-    { id: "p6", name: "Red Velvet",            price: 18.0, cost: 9.8, stock: 7, description: "Massa red velvet com cream cheese.", allergens: "leite, glúten, ovos", shelfLife: dias5 },
-  ];
-
-  const today = todayISO();
-  db.promos = [
-    {
-      id: "promo1", name: "Semana do Ninho", productId: "p2",
-      type: "percent", value: 10,
-      start: addDays(today, -3), end: addDays(today, 4),
-    },
-    {
-      id: "promo2", name: "Queima Maracujá", productId: "p5",
-      type: "fixed", value: 2,
-      start: addDays(today, -30), end: addDays(today, -10),
-    },
-  ];
-
-  // Popularidade relativa de cada sabor no gerador de vendas.
-  const popularity = { p1: 0.28, p2: 0.24, p3: 0.13, p4: 0.15, p5: 0.08, p6: 0.12 };
-  const payments = ["Pix", "Pix", "Pix", "Cartão", "Cartão", "Dinheiro"];
-  const customerNames = ["Mariana", "Carla", "João Pedro", "Fernanda", "Rafael", "Dona Lúcia"];
-  const addresses = ["Centro", "Jardim América", "Vila Nova", "Santa Mônica"];
-
-  db.sales = [];
-  for (let back = 89; back >= 0; back--) {
-    const dateISO = addDays(today, -back);
-    const weekday = (parseISODate(dateISO).getDay() + 6) % 7; // 0=Seg … 6=Dom
-    // Fim de semana vende mais; base cresce levemente ao longo do tempo.
-    const weekendBoost = (weekday >= 4) ? 3 : 0;
-    const growth = (89 - back) / 89; // 0 → 1
-    const salesCount = Math.floor(rand() * 3 + 1 + weekendBoost + growth * 2);
-    for (let s = 0; s < salesCount; s++) {
-      const itemCount = rand() < 0.55 ? 1 : (rand() < 0.75 ? 2 : 3);
-      const items = [];
-      for (let i = 0; i < itemCount; i++) {
-        let r = rand(), acc = 0, chosen = db.products[0];
-        for (const p of db.products) {
-          acc += popularity[p.id];
-          if (r <= acc) { chosen = p; break; }
-        }
-        const qty = rand() < 0.7 ? 1 : 2;
-        const existing = items.find((it) => it.productId === chosen.id);
-        if (existing) { existing.qty += qty; continue; }
-        items.push({
-          productId: chosen.id, name: chosen.name,
-          unitPrice: chosen.price, unitCost: chosen.cost,
-          qty, discount: 0, promoName: null,
-        });
-      }
-      // Aplica promoções vigentes na data da venda.
-      for (const it of items) {
-        const promo = bestPromoFor(it.productId, it.unitPrice, dateISO);
-        if (promo) {
-          it.discount = promo.discountPerUnit * it.qty;
-          it.promoName = promo.name;
-        }
-      }
-      // Canal: maioria balcão, parte delivery (com taxa) e parte encomenda
-      // já concluída (entregue no próprio dia).
-      const chRand = rand();
-      let channel = "balcao", customer = null, deliveryFee = 0, deliveryDate = null;
-      if (chRand < 0.22) {
-        channel = "delivery";
-        customer = {
-          name: customerNames[Math.floor(rand() * customerNames.length)],
-          phone: "", address: addresses[Math.floor(rand() * addresses.length)],
-        };
-        deliveryFee = [5, 6, 7, 8][Math.floor(rand() * 4)];
-      } else if (chRand < 0.32) {
-        channel = "encomenda";
-        customer = {
-          name: customerNames[Math.floor(rand() * customerNames.length)],
-          phone: "", address: "",
-        };
-        deliveryDate = dateISO;
-        deliveryFee = rand() < 0.5 ? 5 : 0;
-      }
-      const hour = String(9 + Math.floor(rand() * 11)).padStart(2, "0");
-      const minute = String(Math.floor(rand() * 60)).padStart(2, "0");
-      db.sales.push({
-        id: uid(),
-        dateISO,
-        time: `${hour}:${minute}`,
-        payment: payments[Math.floor(rand() * payments.length)],
-        paid: true,      // vendas já concluídas: pagamento recebido
-        status: "ok",
-        channel, customer, deliveryFee, deliveryDate,
-        items,
-      });
-    }
-  }
-
-  // Encomendas ainda abertas: uma atrasada (para demonstrar o alerta),
-  // as demais nos próximos dias.
-  const pendingSeed = [
-    { name: "Mariana", phone: "(11) 98888-1234", address: "Jardim América", days: -1, itemDefs: [["p1", 6]], fee: 8, payment: "Pix", paid: true },
-    { name: "Seu João", phone: "(11) 97777-4321", address: "", days: 1, itemDefs: [["p2", 4], ["p6", 2]], fee: 0, payment: "Dinheiro", paid: false },
-    { name: "Escola Sol Nascente", phone: "(11) 96666-0000", address: "Centro", days: 2, itemDefs: [["p4", 10]], fee: 12, payment: "Pix", paid: false },
-    { name: "Carla", phone: "(11) 95555-9090", address: "", days: 5, itemDefs: [["p1", 3], ["p3", 3]], fee: 0, payment: "Cartão", paid: false },
-  ];
-  for (const o of pendingSeed) {
-    db.sales.push({
-      id: uid(),
-      dateISO: addDays(today, Math.min(o.days, 0) - 2),
-      time: "10:00",
-      payment: o.payment,
-      paid: o.paid,
-      status: "pendente",
-      channel: "encomenda",
-      customer: { name: o.name, phone: o.phone, address: o.address },
-      deliveryFee: o.fee,
-      deliveryDate: addDays(today, o.days),
-      items: o.itemDefs.map(([pid, qty]) => {
-        const p = db.products.find((x) => x.id === pid);
-        return {
-          productId: pid, name: p.name, unitPrice: p.price, unitCost: p.cost,
-          qty, discount: 0, promoName: null,
-        };
-      }),
-    });
-  }
+async function refreshProducts() {
+  db.products = (await api("/products")).map(mapApiProduct);
+}
+async function refreshPromotions() {
+  db.promos = (await api("/promotions")).map(mapApiPromo);
+}
+async function refreshSales() {
+  // Só a administradora lista o histórico completo; a cliente acompanha os
+  // próprios pedidos pelo telefone (aba Loja → "Acompanhar pedido").
+  db.sales = currentRole === "admin" ? (await api("/sales")).map(mapApiSale) : [];
+}
+async function refreshRemoteData() {
+  await Promise.all([refreshProducts(), refreshPromotions(), refreshSales()]);
 }
 
 /* ---------- Regras de negócio ---------- */
@@ -1054,95 +977,83 @@ function addToCart() {
   renderCart();
 }
 
-function confirmSale() {
+async function confirmSale() {
   const lines = cartLines();
   if (!lines.length) return;
 
   const channel = currentChannel();
-  const customer = {
-    name: document.getElementById("sale-customer").value.trim(),
-    phone: document.getElementById("sale-phone").value.trim(),
-    address: document.getElementById("sale-address").value.trim(),
-  };
+  const customerName = document.getElementById("sale-customer").value.trim();
+  const customerPhone = document.getElementById("sale-phone").value.trim();
+  const customerAddress = document.getElementById("sale-address").value.trim();
   const fee = channel === "balcao"
     ? 0
     : Math.max(0, readMoney(document.getElementById("sale-fee")));
   const dueDate = document.getElementById("sale-due-date").value;
 
-  if (channel === "delivery" && (!customer.name || !customer.address)) {
+  if (channel === "delivery" && (!customerName || !customerAddress)) {
     toast("Informe o cliente e o endereço de entrega do delivery.");
     return;
   }
   if (channel === "encomenda") {
-    if (!customer.name) { toast("Informe o nome do cliente da encomenda."); return; }
+    if (!customerName) { toast("Informe o nome do cliente da encomenda."); return; }
     if (!dueDate) { toast("Informe a data de entrega da encomenda."); return; }
     if (dueDate < todayISO()) { toast("A data de entrega não pode estar no passado."); return; }
   }
-  if (channel !== "encomenda") {
-    for (const line of lines) {
-      if (line.qty > line.product.stock) {
-        toast(`Estoque insuficiente de ${line.product.name}.`);
-        return;
-      }
-    }
-  }
 
   const payment = document.querySelector('input[name="payment"]:checked').value;
-  const now = new Date();
-  const sale = {
-    id: uid(),
-    dateISO: todayISO(),
-    time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-    payment,
-    // Balcão/delivery: pago na hora. Encomenda: o admin confirma o recebimento depois.
-    paid: channel !== "encomenda",
-    status: channel === "encomenda" ? "pendente" : "ok",
-    channel,
-    customer: channel === "balcao" ? null : customer,
-    deliveryFee: fee,
-    deliveryDate: channel === "encomenda" ? dueDate : null,
-    items: lines.map((line) => ({
-      productId: line.product.id,
-      name: line.product.name,
-      unitPrice: line.product.price,
-      unitCost: line.product.cost,
-      qty: line.qty,
-      discount: line.discount,
-      promoName: line.promoName,
-    })),
-  };
-  // Encomenda não baixa o estoque pronto: os potes serão produzidos para a data.
-  if (channel !== "encomenda") {
-    for (const line of lines) line.product.stock -= line.qty;
+  const btn = document.getElementById("btn-confirm-sale");
+  btn.disabled = true;
+  try {
+    // O servidor recalcula preço/estoque/promoção do zero — o que mandamos
+    // aqui é só a intenção (quais produtos, quantas unidades).
+    const sale = await api("/sales", {
+      method: "POST",
+      body: {
+        channel,
+        payment,
+        items: lines.map((line) => ({ productId: line.product.id, qty: line.qty })),
+        customerName,
+        customerPhone,
+        customerAddress,
+        deliveryFee: fee,
+        deliveryDate: channel === "encomenda" ? dueDate : null,
+      },
+    });
+    state.cart = [];
+    for (const id of ["sale-customer", "sale-phone", "sale-address"]) {
+      document.getElementById(id).value = "";
+    }
+    setMoney(document.getElementById("sale-fee"), 0);
+    await refreshProducts();
+    await refreshSales();
+    renderAll();
+    toast(channel === "encomenda"
+      ? `Encomenda de ${customerName} registrada para ${fmtDateBR(dueDate)}.`
+      : `Venda registrada: ${fmtMoney(sale.total)} no ${payment}.`);
+  } catch (err) {
+    toast(err.message + (err.details ? " " + err.details : ""));
+  } finally {
+    btn.disabled = false;
   }
-  db.sales.push(sale);
-  state.cart = [];
-  for (const id of ["sale-customer", "sale-phone", "sale-address"]) {
-    document.getElementById(id).value = "";
-  }
-  setMoney(document.getElementById("sale-fee"), 0);
-  saveDB();
-  renderAll();
-  toast(channel === "encomenda"
-    ? `Encomenda de ${customer.name} registrada para ${fmtDateBR(dueDate)}.`
-    : `Venda registrada: ${fmtMoney(saleTotal(sale))} no ${payment}.`);
 }
 
-function concludeOrder(saleId) {
+async function concludeOrder(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
   if (!sale || sale.status !== "pendente") return;
   if (!sale.paid && !confirm("Este pedido ainda não teve o pagamento confirmado. Concluir mesmo assim?")) return;
-  sale.status = "ok";
-  // Entrega antecipada conta como receita de hoje.
-  if (sale.deliveryDate > todayISO()) sale.deliveryDate = todayISO();
-  saveDB();
-  renderAll();
-  toast(`Encomenda de ${sale.customer?.name || "cliente"} concluída e somada às vendas.`);
+  try {
+    await api(`/sales/${saleId}/complete`, { method: "PATCH" });
+    await refreshSales();
+    renderAll();
+    toast(`Encomenda de ${sale.customer?.name || "cliente"} concluída e somada às vendas.`);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /* Pedidos feitos pela Loja sempre chegam com taxa de entrega zerada (o
    cliente não escolhe o valor). O admin ajusta aqui antes de concluir. */
-function editOrderFee(saleId) {
+async function editOrderFee(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
   if (!sale || sale.status !== "pendente") return;
   const current = sale.deliveryFee || 0;
@@ -1150,23 +1061,31 @@ function editOrderFee(saleId) {
   if (raw === null) return;
   const value = Number(raw.trim().replace(/\./g, "").replace(",", "."));
   if (!Number.isFinite(value) || value < 0) { toast("Valor inválido."); return; }
-  sale.deliveryFee = Math.round(value * 100) / 100;
-  saveDB();
-  renderAll();
-  toast(`Taxa de entrega de ${sale.customer?.name || "cliente"} definida em ${fmtMoney(sale.deliveryFee)}.`);
+  try {
+    await api(`/sales/${saleId}/delivery-fee`, { method: "PATCH", body: { deliveryFee: Math.round(value * 100) / 100 } });
+    await refreshSales();
+    renderAll();
+    toast(`Taxa de entrega de ${sale.customer?.name || "cliente"} definida em ${fmtMoney(value)}.`);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /* O admin apenas confirma que o pagamento (feito pelo cliente) foi recebido. */
-function markOrderPaid(saleId) {
+async function markOrderPaid(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
   if (!sale || sale.paid) return;
-  sale.paid = true;
-  saveDB();
-  renderAll();
-  toast(`Pagamento de ${sale.customer?.name || "cliente"} confirmado (${sale.payment}).`);
+  try {
+    await api(`/sales/${saleId}/paid`, { method: "PATCH" });
+    await refreshSales();
+    renderAll();
+    toast(`Pagamento de ${sale.customer?.name || "cliente"} confirmado (${sale.payment}).`);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
-function cancelSale(saleId) {
+async function cancelSale(saleId) {
   const sale = db.sales.find((s) => s.id === saleId);
   if (!sale || sale.status === "cancelled") return;
   const isOrder = sale.channel === "encomenda";
@@ -1174,17 +1093,15 @@ function cancelSale(saleId) {
     ? "Cancelar esta encomenda?"
     : "Cancelar esta venda? O estoque dos itens será devolvido.";
   if (!confirm(msg)) return;
-  sale.status = "cancelled";
-  // Encomendas nunca baixaram o estoque pronto, então nada a devolver.
-  if (!isOrder) {
-    for (const it of sale.items) {
-      const product = db.products.find((p) => p.id === it.productId);
-      if (product) product.stock += it.qty;
-    }
+  try {
+    await api(`/sales/${saleId}/cancel`, { method: "PATCH" });
+    await refreshProducts();
+    await refreshSales();
+    renderAll();
+    toast(isOrder ? "Encomenda cancelada." : "Venda cancelada e estoque devolvido.");
+  } catch (err) {
+    toast(err.message);
   }
-  saveDB();
-  renderAll();
-  toast(isOrder ? "Encomenda cancelada." : "Venda cancelada e estoque devolvido.");
 }
 
 function renderOrders() {
@@ -1393,7 +1310,7 @@ function resetProductForm() {
   updateProductImagePreview();
 }
 
-function submitProductForm(ev) {
+async function submitProductForm(ev) {
   ev.preventDefault();
   const name = document.getElementById("product-name").value.trim();
   const price = readMoney(document.getElementById("product-price"));
@@ -1406,22 +1323,24 @@ function submitProductForm(ev) {
   if (cost >= price) toast("Atenção: custo maior ou igual ao preço — margem zero ou negativa.");
 
   const image = state.productImage || null;
-  if (state.editingProductId) {
-    const p = db.products.find((x) => x.id === state.editingProductId);
-    Object.assign(p, { name, price, cost, stock, image, description, allergens, shelfLife });
-    toast(`Produto "${name}" atualizado.`);
-  } else {
-    db.products.push({ id: uid(), name, price, cost, stock, image, description, allergens, shelfLife });
-    toast(`Produto "${name}" cadastrado.`);
+  const payload = { name, price, cost, stock, image, description, allergens, shelfLife };
+  try {
+    if (state.editingProductId) {
+      await api(`/products/${state.editingProductId}`, { method: "PUT", body: payload });
+      toast(`Produto "${name}" atualizado.`);
+    } else {
+      await api("/products", { method: "POST", body: payload });
+      toast(`Produto "${name}" cadastrado.`);
+    }
+    resetProductForm();
+    await refreshProducts();
+    renderAll();
+  } catch (err) {
+    toast(err.message + (err.details ? " " + err.details : ""));
   }
-  if (!saveDB()) {
-    toast("Foto grande demais para o armazenamento do navegador. Tente uma imagem menor.");
-  }
-  resetProductForm();
-  renderAll();
 }
 
-function deleteProduct(id) {
+async function deleteProduct(id) {
   const p = db.products.find((x) => x.id === id);
   if (!p) return;
   const linkedPromos = db.promos.filter((pr) => pr.productId === id);
@@ -1429,13 +1348,17 @@ function deleteProduct(id) {
     ? `Excluir "${p.name}"? ${linkedPromos.length} promoção(ões) ligadas a ele também serão removidas. O histórico de vendas é mantido.`
     : `Excluir "${p.name}"? O histórico de vendas é mantido.`;
   if (!confirm(msg)) return;
-  db.products = db.products.filter((x) => x.id !== id);
-  db.promos = db.promos.filter((pr) => pr.productId !== id);
-  if (state.editingProductId === id) resetProductForm();
-  state.cart = state.cart.filter((c) => c.productId !== id);
-  saveDB();
-  renderAll();
-  toast(`Produto "${p.name}" excluído.`);
+  try {
+    await api(`/products/${id}`, { method: "DELETE" });
+    if (state.editingProductId === id) resetProductForm();
+    state.cart = state.cart.filter((c) => c.productId !== id);
+    await refreshProducts();
+    await refreshPromotions();
+    renderAll();
+    toast(`Produto "${p.name}" excluído.`);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /* ============================================================
@@ -1526,7 +1449,7 @@ function resetPromoForm() {
   applyPromoValueMode(false);
 }
 
-function submitPromoForm(ev) {
+async function submitPromoForm(ev) {
   ev.preventDefault();
   const name = document.getElementById("promo-name").value.trim();
   const productId = document.getElementById("promo-product").value || null;
@@ -1542,28 +1465,36 @@ function submitPromoForm(ev) {
   if (end < start) { toast("A data final deve ser depois da inicial."); return; }
   if (type === "percent" && value > 90) { toast("Desconto máximo permitido: 90%."); return; }
 
-  if (state.editingPromoId) {
-    const promo = db.promos.find((x) => x.id === state.editingPromoId);
-    Object.assign(promo, { name, productId, type, value, start, end });
-    toast(`Promoção "${name}" atualizada.`);
-  } else {
-    db.promos.push({ id: uid(), name, productId, type, value, start, end });
-    toast(`Promoção "${name}" criada.`);
+  const payload = { name, productId, type, value, startDate: start, endDate: end };
+  try {
+    if (state.editingPromoId) {
+      await api(`/promotions/${state.editingPromoId}`, { method: "PUT", body: payload });
+      toast(`Promoção "${name}" atualizada.`);
+    } else {
+      await api("/promotions", { method: "POST", body: payload });
+      toast(`Promoção "${name}" criada.`);
+    }
+    resetPromoForm();
+    await refreshPromotions();
+    renderAll();
+  } catch (err) {
+    toast(err.message + (err.details ? " " + err.details : ""));
   }
-  saveDB();
-  resetPromoForm();
-  renderAll();
 }
 
-function deletePromo(id) {
+async function deletePromo(id) {
   const promo = db.promos.find((x) => x.id === id);
   if (!promo) return;
   if (!confirm(`Excluir a promoção "${promo.name}"?`)) return;
-  db.promos = db.promos.filter((x) => x.id !== id);
-  if (state.editingPromoId === id) resetPromoForm();
-  saveDB();
-  renderAll();
-  toast("Promoção excluída.");
+  try {
+    await api(`/promotions/${id}`, { method: "DELETE" });
+    if (state.editingPromoId === id) resetPromoForm();
+    await refreshPromotions();
+    renderAll();
+    toast("Promoção excluída.");
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /* ============================================================
@@ -1887,7 +1818,7 @@ function renderShop() {
   if (!dateInput.value || dateInput.value < todayISO()) dateInput.value = addDays(todayISO(), 1);
 }
 
-function submitShopOrder(ev) {
+async function submitShopOrder(ev) {
   ev.preventDefault();
   const lines = shopCartLines();
   const name = document.getElementById("shop-name").value.trim();
@@ -1905,48 +1836,43 @@ function submitShopOrder(ev) {
   }
 
   const payment = document.querySelector('input[name="shop-payment"]:checked').value;
-  const now = new Date();
-  const sale = {
-    id: uid(),
-    dateISO: todayISO(),
-    time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-    payment,           // forma escolhida pelo cliente
-    paid: false,       // o admin confirma o recebimento depois
-    status: "pendente",
-    channel: "encomenda",
-    customer: { name, phone, address: wantsDelivery ? address : "" },
-    deliveryFee: 0,
-    deliveryDate: dueDate,
-    items: lines.map((line) => ({
-      productId: line.product.id,
-      name: line.product.name,
-      unitPrice: line.product.price,
-      unitCost: line.product.cost,
-      qty: line.qty,
-      discount: line.discount,
-      promoName: line.promoName,
-    })),
-  };
-  db.sales.push(sale);
-  state.shopCart = [];
-  saveDB();
+  try {
+    // Sempre encomenda, sempre sem taxa forjada: o servidor decide o resto
+    // (preço, promoção) a partir do produto real — o pedido só carrega a
+    // intenção da cliente.
+    const sale = await api("/sales", {
+      method: "POST",
+      body: {
+        channel: "encomenda",
+        payment,
+        items: lines.map((line) => ({ productId: line.product.id, qty: line.qty })),
+        customerName: name,
+        customerPhone: phone,
+        customerAddress: wantsDelivery ? address : "",
+        deliveryDate: dueDate,
+      },
+    });
 
-  // Resumo para o cliente mandar no WhatsApp da loja.
-  const summary = [
-    "Olá! Acabei de fazer um pedido na loja Bolos da Bru.",
-    ...sale.items.map((it) => `• ${it.qty}× ${it.name}`),
-    `Total: ${fmtMoney(saleTotal(sale))}`,
-    `Pagamento: ${payment}`,
-    `Para: ${fmtDateBR(dueDate)} (${wantsDelivery ? "entrega em " + address : "retirada"})`,
-    `Nome: ${name} — ${phone}`,
-  ].join("\n");
+    // Resumo para o cliente mandar no WhatsApp da loja.
+    const summary = [
+      "Olá! Acabei de fazer um pedido na loja Bolos da Bru.",
+      ...sale.items.map((it) => `• ${it.qty}× ${it.name}`),
+      `Total: ${fmtMoney(sale.total)}`,
+      `Pagamento: ${payment}`,
+      `Para: ${fmtDateBR(dueDate)} (${wantsDelivery ? "entrega em " + address : "retirada"})`,
+      `Nome: ${name} — ${phone}`,
+    ].join("\n");
 
-  // Limpa o formulário antes de re-renderizar, para que renderShop reponha
-  // a data padrão (o reset() zera o campo de data).
-  document.getElementById("shop-form").reset();
-  renderAll();
-  renderShopConfirmation(sale, summary);
-  toast("Pedido registrado! Ele já aparece nas encomendas abertas.");
+    // Limpa o formulário antes de re-renderizar, para que renderShop reponha
+    // a data padrão (o reset() zera o campo de data).
+    document.getElementById("shop-form").reset();
+    await refreshProducts();
+    renderAll();
+    renderShopConfirmation(sale, summary);
+    toast("Pedido registrado! Ele já aparece nas encomendas abertas.");
+  } catch (err) {
+    toast(err.message + (err.details ? " " + err.details : ""));
+  }
 }
 
 /* Copia um texto para a área de transferência, com retorno de sucesso. */
@@ -1968,16 +1894,17 @@ async function copyToClipboard(text) {
 }
 
 /* O cliente avisa que já pagou (ex.: enviou o Pix). O admin ainda confirma
-   o recebimento — este é só o aviso do cliente. */
-function markOrderInformed(saleId) {
-  const sale = db.sales.find((s) => s.id === saleId);
+   o recebimento — este é só o aviso do cliente. Rota pública, chaveada pelo
+   id (UUID) da venda: a cliente não tem acesso ao histórico completo. */
+async function markOrderInformed(sale) {
   if (!sale || sale.paid || sale.paymentInformed) return;
-  sale.paymentInformed = true;
-  saveDB();
-  renderAll();
-  const found = db.sales.find((s) => s.id === saleId);
-  if (found) renderShopConfirmation(found);
-  toast("Obrigada! Vamos conferir e confirmar seu pagamento.");
+  try {
+    const updated = mapApiSale(await api(`/sales/${sale.id}/inform-payment`, { method: "PATCH" }));
+    renderShopConfirmation(updated);
+    toast("Obrigada! Vamos conferir e confirmar seu pagamento.");
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 /* Tela de confirmação do pedido (visão do cliente): resumo + pagamento. */
@@ -2023,7 +1950,7 @@ function renderShopConfirmation(sale, summary) {
       payBox.append(el("p", { class: "pay-informed" }, "✓ Você avisou que pagou. Estamos conferindo!"));
     } else {
       payBox.append(el("button", {
-        class: "btn primary", type: "button", onclick: () => markOrderInformed(sale.id),
+        class: "btn primary", type: "button", onclick: () => markOrderInformed(sale),
       }, "Já fiz o Pix"));
     }
   } else {
@@ -2057,15 +1984,20 @@ function mapsRouteUrl(address) {
 
 /* Acompanhamento: o cliente busca os próprios pedidos pelo telefone. Funciona
    com os pedidos registrados neste dispositivo/loja. */
-function trackOrders() {
+async function trackOrders() {
   const box = document.getElementById("track-result");
   box.textContent = "";
   const phone = onlyDigits(document.getElementById("track-phone").value);
   if (phone.length < 8) { toast("Digite o telefone completo, com DDD."); return; }
 
-  const found = db.sales
-    .filter((s) => s.customer && onlyDigits(s.customer.phone) === phone)
-    .sort((a, b) => (b.deliveryDate || b.dateISO).localeCompare(a.deliveryDate || a.dateISO));
+  let found;
+  try {
+    // Rota pública: devolve só os pedidos daquele telefone, sem custo/lucro.
+    found = (await api(`/sales/track?phone=${encodeURIComponent(phone)}`)).map(mapApiSale);
+  } catch (err) {
+    toast(err.message);
+    return;
+  }
 
   if (!found.length) {
     box.append(el("p", { class: "empty-msg" },
@@ -2099,7 +2031,7 @@ function trackOrders() {
     if (!s.paid && !s.paymentInformed && s.payment === "Pix" && s.status !== "cancelled") {
       rowChildren.push(el("button", {
         class: "btn small track-inform", type: "button",
-        onclick: () => { markOrderInformed(s.id); trackOrders(); },
+        onclick: async () => { await markOrderInformed(s); trackOrders(); },
       }, "Já fiz o Pix"));
     }
     box.append(el("div", { class: "track-item" }, rowChildren));
@@ -2266,31 +2198,22 @@ function switchView(view) {
 /* ---------- Autenticação e perfis ---------- */
 
 function readSession() {
-  try { return localStorage.getItem(SESSION_KEY); } catch { return null; }
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
-function writeSession(v) {
-  try { v ? localStorage.setItem(SESSION_KEY, v) : localStorage.removeItem(SESSION_KEY); }
-  catch { /* sem persistência */ }
+function writeSession(session) {
+  try {
+    session ? localStorage.setItem(SESSION_KEY, JSON.stringify(session)) : localStorage.removeItem(SESSION_KEY);
+  } catch { /* sem persistência */ }
 }
 
-/* Hash simples para as senhas guardadas no navegador. Ofusca, mas NÃO é
-   segurança real — a validação verdadeira exige um servidor (ver Fase 1). */
-function hashPass(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) | 0; }
-  return "h" + (h >>> 0).toString(36);
-}
-const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-
-/* Coloca a loja no ar para o perfil informado (admin, cliente-demo ou uma
-   conta de cliente). Prefill dos dados quando é uma conta real.
-   `seedIfEmpty` popula dados de exemplo se o catálogo estiver vazio, para a
-   vitrine do cliente nunca ficar em branco — mas só numa ação explícita de
-   cliente (atalho, login, cadastro). Na entrada automática de visitante (sem
-   sessão salva, ao abrir a página) isso fica desligado, senão o catálogo de
-   demonstração apareceria sozinho antes até da administradora logar e ver o
-   sistema genuinamente vazio no primeiro acesso dela. */
-function enterAs(role, customer, { seedIfEmpty = true } = {}) {
+/* Coloca a loja no ar para o perfil informado (admin, visitante sem conta ou
+   uma conta de cliente autenticada) e busca os dados reais do servidor —
+   cada papel vê só o que a API deixa (ex.: cliente não lista o histórico
+   de vendas, só acompanha os próprios pedidos por telefone). */
+async function enterAs(role, customer) {
   currentRole = role;
   currentCustomer = customer || null;
   document.body.classList.toggle("role-cliente", role === "cliente");
@@ -2305,9 +2228,6 @@ function enterAs(role, customer, { seedIfEmpty = true } = {}) {
   const logoutBtn = document.getElementById("btn-logout");
   logoutBtn.textContent = isGuest ? "Entrar" : "Sair";
   logoutBtn.title = isGuest ? "Entrar com sua conta ou como administradora" : "";
-  if (role === "cliente" && seedIfEmpty && !db.products.length) {
-    seedDemoData(); saveDB(); renderAll();
-  }
   switchView(role === "cliente" ? "loja" : "dashboard");
   // Prefill dos campos do cliente logado
   if (customer) {
@@ -2316,64 +2236,52 @@ function enterAs(role, customer, { seedIfEmpty = true } = {}) {
     set("shop-phone", customer.phone);
     set("track-phone", customer.phone);
   }
-  renderShop();
-}
-
-/* Restaura a sessão salva: "admin", "cliente-demo" ou "cliente:<id>". */
-function restoreSession(token) {
-  if (token === "admin") return enterAs("admin"), true;
-  if (token === "cliente-demo") return enterAs("cliente"), true;
-  if (token && token.startsWith("cliente:")) {
-    const c = db.customers.find((x) => x.id === token.slice(8));
-    if (c) return enterAs("cliente", c), true;
+  try {
+    await refreshRemoteData();
+  } catch (err) {
+    toast(err.message);
   }
-  return false;
+  renderAll();
 }
 
-/* Login da loja (admin). */
-function doAdminLogin(password) {
-  if (password !== ACCOUNTS.admin.password) return false;
-  writeSession("admin");
-  enterAs("admin");
-  return true;
-}
-
-/* Login do cliente por e-mail OU telefone + senha. */
-function doCustomerLogin(idRaw, password) {
-  const id = idRaw.trim().toLowerCase();
-  const phone = onlyDigits(idRaw);
-  const c = db.customers.find((x) =>
-    (x.email && x.email.toLowerCase() === id) || (phone && onlyDigits(x.phone) === phone));
-  if (!c || c.pass !== hashPass(password)) return false;
-  writeSession("cliente:" + c.id);
-  enterAs("cliente", c);
-  return true;
-}
-
-/* Cadastro de novo cliente com validação de formato. */
-function doCustomerRegister({ name, phone, email, pass }) {
-  if (!name || name.trim().length < 2) return { ok: false, msg: "Informe seu nome completo." };
-  if (onlyDigits(phone).length < 10) return { ok: false, msg: "Telefone inválido — use DDD + número." };
-  if (!isEmail(email)) return { ok: false, msg: "E-mail inválido." };
-  if (!pass || pass.length < 4) return { ok: false, msg: "A senha precisa de ao menos 4 caracteres." };
-  const emailLc = email.trim().toLowerCase();
-  const phoneD = onlyDigits(phone);
-  if (db.customers.some((c) => c.email.toLowerCase() === emailLc)) {
-    return { ok: false, msg: "Já existe uma conta com esse e-mail. Tente entrar." };
+/* Restaura a sessão salva (token JWT), validando-o contra o servidor —
+   nunca confia cegamente no que está no localStorage. */
+async function restoreSession() {
+  const session = readSession();
+  if (!session || !session.token) return false;
+  authToken = session.token;
+  try {
+    await enterAs(session.role, session.role === "cliente" ? { name: session.name, phone: session.phone } : null);
+    return true;
+  } catch {
+    // Token expirado/inválido: derruba a sessão e volta ao estado anônimo.
+    authToken = null;
+    writeSession(null);
+    return false;
   }
-  if (db.customers.some((c) => onlyDigits(c.phone) === phoneD)) {
-    return { ok: false, msg: "Já existe uma conta com esse telefone. Tente entrar." };
-  }
-  const c = { id: uid(), name: name.trim(), phone: phone.trim(), email: email.trim(), pass: hashPass(pass), createdAt: todayISO() };
-  db.customers.push(c);
-  writeSession("cliente:" + c.id);
-  saveDB();
-  enterAs("cliente", c);
-  return { ok: true };
+}
+
+/* Login da loja (admin) ou do cliente por e-mail/telefone — mesma rota,
+   o servidor decide o papel a partir da conta real. */
+async function doLogin(identifier, password) {
+  const data = await api("/auth/login", { method: "POST", body: { identifier, password } });
+  authToken = data.token;
+  writeSession({ token: data.token, role: data.user.role, name: data.user.name, phone: data.user.phone });
+  await enterAs(data.user.role, data.user.role === "cliente" ? { name: data.user.name } : null);
+  return data.user;
+}
+
+/* Cadastro de novo cliente — validação de formato acontece no servidor. */
+async function doCustomerRegister({ name, phone, email, pass }) {
+  const data = await api("/auth/register", { method: "POST", body: { name, phone, email, password: pass } });
+  authToken = data.token;
+  writeSession({ token: data.token, role: data.user.role, name: data.user.name, phone });
+  await enterAs("cliente", { name: data.user.name, phone });
 }
 
 function logout() {
   writeSession(null);
+  authToken = null;
   ["login-form", "customer-login-form", "customer-register-form"].forEach((id) => {
     const f = document.getElementById(id); if (f) f.reset();
   });
@@ -2426,56 +2334,71 @@ function bindEvents() {
     });
   });
 
-  // Login da loja (admin)
-  document.getElementById("login-form").addEventListener("submit", (ev) => {
+  // Login da loja (admin) — mesma rota de login do cliente; o servidor é
+  // quem decide o papel, então aqui só confirmamos que veio uma admin.
+  document.getElementById("login-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const user = document.getElementById("login-user").value.trim().toLowerCase();
+    const user = document.getElementById("login-user").value.trim();
     const pass = document.getElementById("login-pass").value;
     const errorEl = document.getElementById("login-error");
-    if (user === "admin" && doAdminLogin(pass)) {
+    try {
+      const account = await doLogin(user, pass);
+      if (account.role !== "admin") {
+        logout();
+        errorEl.textContent = "Essa conta não é de administradora — use a aba \"Sou cliente\".";
+        errorEl.hidden = false;
+        return;
+      }
       document.getElementById("login-form").reset();
       errorEl.hidden = true;
-    } else {
-      errorEl.textContent = "Usuário ou senha inválidos.";
+    } catch (err) {
+      errorEl.textContent = err.message;
       errorEl.hidden = false;
     }
   });
 
   // Login do cliente
-  document.getElementById("customer-login-form").addEventListener("submit", (ev) => {
+  document.getElementById("customer-login-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const err = document.getElementById("cl-error");
-    const ok = doCustomerLogin(
-      document.getElementById("cl-login-id").value,
-      document.getElementById("cl-login-pass").value);
-    if (ok) { document.getElementById("customer-login-form").reset(); err.hidden = true; }
-    else { err.textContent = "E-mail/telefone ou senha incorretos."; err.hidden = false; }
+    try {
+      await doLogin(
+        document.getElementById("cl-login-id").value,
+        document.getElementById("cl-login-pass").value);
+      document.getElementById("customer-login-form").reset();
+      err.hidden = true;
+    } catch (e) {
+      err.textContent = e.message;
+      err.hidden = false;
+    }
   });
 
   // Cadastro do cliente
-  document.getElementById("customer-register-form").addEventListener("submit", (ev) => {
+  document.getElementById("customer-register-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const err = document.getElementById("cl-error");
     if (!document.getElementById("cl-reg-consent").checked) {
       err.textContent = "Marque o aceite da Política de Privacidade."; err.hidden = false; return;
     }
-    const res = doCustomerRegister({
-      name: document.getElementById("cl-reg-name").value,
-      phone: document.getElementById("cl-reg-phone").value,
-      email: document.getElementById("cl-reg-email").value,
-      pass: document.getElementById("cl-reg-pass").value,
-    });
-    if (res.ok) { document.getElementById("customer-register-form").reset(); err.hidden = true; }
-    else { err.textContent = res.msg; err.hidden = false; }
+    try {
+      await doCustomerRegister({
+        name: document.getElementById("cl-reg-name").value,
+        phone: document.getElementById("cl-reg-phone").value,
+        email: document.getElementById("cl-reg-email").value,
+        pass: document.getElementById("cl-reg-pass").value,
+      });
+      document.getElementById("customer-register-form").reset();
+      err.hidden = true;
+    } catch (e) {
+      err.textContent = e.message + (e.details ? " " + e.details : "");
+      err.hidden = false;
+    }
   });
   attachPhoneMask(document.getElementById("cl-reg-phone"));
 
-  // Botões de demonstração
+  // Continuar sem conta: navega como visitante, sem criar sessão nenhuma.
   document.querySelectorAll(".login-demo-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.user === "admin") doAdminLogin(ACCOUNTS.admin.password);
-      else { writeSession("cliente-demo"); enterAs("cliente"); }
-    });
+    btn.addEventListener("click", () => enterAs("cliente", null));
   });
   // Visitante sem conta: o botão só reabre o login. Quem tem sessão (admin
   // ou cliente autenticado) sai de verdade.
@@ -2566,18 +2489,6 @@ function bindEvents() {
     attachPhoneMask(document.getElementById(id));
   });
 
-  const loadDemo = (needsConfirm) => {
-    if (needsConfirm && (db.products.length || db.sales.length)
-        && !confirm("Substituir os dados atuais pelos dados de exemplo?")) return;
-    seedDemoData();
-    saveDB();
-    state.cart = [];
-    state.shopCart = [];
-    renderAll();
-    toast("Dados de exemplo carregados. Para usar de verdade, apague-os na aba Dicas.");
-  };
-  document.getElementById("btn-load-demo").addEventListener("click", () => loadDemo(false));
-  document.getElementById("btn-reset-demo").addEventListener("click", () => loadDemo(true));
   document.getElementById("btn-goto-products").addEventListener("click", () => {
     switchView("produtos");
     document.getElementById("product-name").focus();
@@ -2598,15 +2509,6 @@ function bindEvents() {
     renderShopFooter();
     toast("Configurações da loja salvas.");
   });
-  document.getElementById("btn-clear-data").addEventListener("click", () => {
-    if (!confirm("Apagar TODOS os produtos, vendas e promoções? Essa ação não tem volta.")) return;
-    db.products = []; db.sales = []; db.promos = []; db.subscribers = []; db.customers = [];
-    saveDB();
-    state.cart = [];
-    renderAll();
-    toast("Dados apagados. Comece cadastrando seus produtos.");
-  });
-
   // Re-renderiza os gráficos quando o tema do sistema muda (cores via CSS vars
   // são lidas em JS para SVG/tooltip).
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderDashboard);
@@ -2624,12 +2526,11 @@ document.getElementById("cfg-cnpj").value = db.settings.cnpj || "";
 document.getElementById("cfg-city").value = db.settings.city || "";
 document.getElementById("cfg-instagram").value = db.settings.instagram || "";
 document.getElementById("cfg-email").value = db.settings.email || "";
-renderAll();
 
-// Restaura a sessão salva; sem sessão válida, entra direto como visitante —
-// a Loja fica acessível sem tela de bloqueio. O login (cliente ou admin)
-// continua disponível pelo botão "Entrar" no topo. Sem semear dados de
-// exemplo aqui: essa é uma entrada passiva, não uma ação de cliente.
-if (!restoreSession(readSession())) {
-  enterAs("cliente", null, { seedIfEmpty: false });
-}
+// Restaura a sessão salva (token JWT validado contra o servidor); sem sessão
+// válida, entra direto como visitante — a Loja fica acessível sem tela de
+// bloqueio. O login (cliente ou admin) continua disponível pelo botão
+// "Entrar" no topo. enterAs() busca os dados reais e renderiza tudo.
+restoreSession().then((restored) => {
+  if (!restored) enterAs("cliente", null);
+});

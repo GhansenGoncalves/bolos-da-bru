@@ -8,35 +8,35 @@ com indicadores, vendas de **balcão**, **delivery** (com taxa de entrega) e
 promoções aplicadas automaticamente, uma **Loja on-line** onde o cliente monta
 o próprio pedido e dicas geradas a partir dos dados reais do negócio.
 
-## Acesso (contas de demonstração)
+## Acesso
 
-O sistema abre numa tela de login com dois perfis. Na própria tela há atalhos
-que entram com um clique:
+O login é real, validado pelo servidor (ver [`server/`](server/README.md)):
+senha com hash, sessão por JWT. Não há mais usuário/senha fixos no código.
 
-| Perfil | Usuário | Senha | Vê |
-|---|---|---|---|
-| **Administrador** | `admin` | `bru2024` | Todo o sistema (dashboard, vendas, produtos, promoções, dicas e loja) |
-| **Cliente** | `cliente` | `cliente123` | Apenas a **Loja** (a vitrine) |
-
-> Este login é do lado do cliente (front-end), pensado para **separar a vitrine
-> do cliente do painel da administradora** e demonstrar controle de permissões.
-> Não é segurança real — para isso é preciso um servidor com autenticação (está
-> no roteiro da aba Dicas).
+- **Administradora**: usuário e senha definidos nas variáveis de ambiente do
+  backend (`ADMIN_USERNAME`/`ADMIN_PASSWORD`) — vê todo o sistema (dashboard,
+  vendas, produtos, promoções, dicas e loja).
+- **Cliente**: cria conta com nome, e-mail e telefone na própria tela de
+  login (ou entra por e-mail/telefone se já tiver conta) — vê só a **Loja**.
+- **Visitante sem conta**: pode navegar e fazer encomendas na Loja sem se
+  cadastrar, botão "Continuar sem conta".
 
 ## Como usar
 
-Não precisa instalar nada: abra o `index.html` em qualquer navegador moderno.
-Os dados ficam salvos no próprio navegador (localStorage).
-
-Entrando como administrador, o sistema começa **vazio**, pronto para os produtos
-reais. Para explorar antes, o botão "Carregar dados de exemplo" da tela inicial
-preenche tudo com dados fictícios — e dá para apagar depois na aba Dicas.
-
-Se preferir servir por HTTP:
+Este sistema tem duas partes que precisam estar rodando: a **API**
+(`server/`, com Postgres) e este **frontend** (arquivos estáticos).
 
 ```bash
+# 1. Backend — ver instruções completas em server/README.md
+cd server && npm install && cp .env.example .env  # edite o .env
+npm start   # sobe em http://127.0.0.1:3000
+
+# 2. Frontend (noutro terminal, na raiz do repo)
 npm start   # sobe em http://127.0.0.1:4173
 ```
+
+Se a API estiver noutro endereço (ex.: publicada na Render), ajuste a única
+linha de configuração em `js/config.js`.
 
 ## Telas
 
@@ -95,40 +95,34 @@ segue a preferência do sistema: [ver dashboard escuro](docs/screenshots/dashboa
 
 ## Usando para vendas reais
 
-O sistema funciona 100% no navegador, sem servidor. Isso significa:
+Produtos, promoções e vendas ficam no Postgres do backend — não mais no
+navegador. Qualquer dispositivo logado como administradora vê os mesmos
+dados em tempo real, e um pedido feito na Loja pelo celular de uma cliente
+já aparece direto no painel, sem depender de WhatsApp para "chegar".
 
-- **Os dados vivem no aparelho onde você usa o sistema.** Use sempre no mesmo
-  navegador (ex.: o Chrome do seu computador ou celular) e exporte o CSV de
-  vendas com frequência como backup.
-- **Pedidos on-line chegam pelo WhatsApp.** Quando um cliente abre a Loja no
-  celular dele, o pedido é registrado no aparelho *dele* — por isso o botão de
-  WhatsApp existe: o resumo chega no seu número e você registra a encomenda
-  (configure o número em Dicas → Configurações da loja).
-- Para pedidos caírem sozinhos no seu painel de qualquer lugar, o próximo passo
-  é um banco de dados on-line (ver roteiro na aba Dicas).
+- **Pedidos on-line continuam avisando por WhatsApp também** (conveniência,
+  não a única forma de chegar): com o número da loja salvo em Dicas →
+  Configurações, o botão "Enviar resumo no WhatsApp" manda a mensagem, mas o
+  pedido já está em "Encomendas abertas" independente disso.
+- **Backup**: exporte o CSV de vendas com frequência (aba Vendas).
+- Ver [`server/README.md`](server/README.md) para como rodar o backend e
+  fazer o deploy (inclui um `render.yaml` pronto para a Render).
 
-### Backend (API)
+### Hospedagem
 
-Existe agora uma API real em [`server/`](server/README.md): autenticação com
-senha em hash + JWT, e todo preço/estoque/desconto recalculado e validado no
-servidor (não mais só no navegador). O frontend acima ainda funciona sozinho
-com `localStorage` — a integração dos dois é o próximo passo, descrito no
-README do backend.
-
-### Hospedagem (GitHub Pages)
-
-O sistema está no ar em <https://ghansengoncalves.github.io/bolos-da-bru/> —
-grátis e com HTTPS (Settings → Pages → Source: Deploy from a branch → `main`,
-pasta raiz). Esse é o link divulgado para os clientes usarem a aba Loja.
+O frontend estático continua podendo ficar no GitHub Pages (grátis, HTTPS):
+Settings → Pages → Source: Deploy from a branch → `main`, pasta raiz. A API
+precisa de um host que rode Node + Postgres — ver seção de deploy em
+[`server/README.md`](server/README.md).
 
 ## Testes automatizados
 
-Suíte E2E com [Playwright](https://playwright.dev): 41 testes cobrindo primeiro
-acesso e permissões (perfis admin/cliente), dashboard e filtros, os três canais
-de venda, encomendas (inclusive atraso e estorno), a loja do cliente, fluxo de
-pagamento Pix, consentimento LGPD, rotulagem de produtos, rodapé legal, CRUD de
-produtos (com foto) e promoções, dicas, configurações, persistência, CSV e modo
-escuro.
+Suíte E2E com [Playwright](https://playwright.dev), histórica de antes da
+integração com o backend real (época em que o login era simulado e os dados
+viviam só no navegador). Com a API real em uso, o fluxo de login mudou
+(sem mais atalho de senha fixa) e vários testes precisam ser adaptados —
+isso ainda não foi feito. Rodar a suíte hoje é útil para conferir que a UI
+não regrediu estruturalmente, mas espere falhas nos testes de autenticação:
 
 ```bash
 npm install
@@ -136,10 +130,14 @@ npx playwright install chromium   # primeira vez
 npm test
 ```
 
-Cada teste roda em contexto isolado do navegador, sem dependência de ordem.
+O backend também tem sua própria suíte de testes (20 testes de integração,
+sem depender da UI) — ver `server/README.md`.
 
 ## Tecnologia
 
-HTML, CSS e JavaScript puros — sem dependências de runtime, sem build.
-Gráficos em SVG feitos à mão, paleta validada para daltonismo e contraste,
-dados persistidos em localStorage.
+Frontend: HTML, CSS e JavaScript puros — sem dependências de runtime, sem
+build. Gráficos em SVG feitos à mão, paleta validada para daltonismo e
+contraste. Fala com o backend via `fetch` (ver `js/config.js`).
+
+Backend: Node.js/Express + Postgres (`server/`) — autenticação real e todas
+as regras de negócio validadas no servidor.

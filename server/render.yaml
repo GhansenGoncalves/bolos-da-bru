@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: bolos-da-bru-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 12h
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bolos-da-bru-db
+          property: connectionString
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+databases:
+  - name: bolos-da-bru-db
+    plan: free

@@ -1,8 +1,6 @@
 "use strict";
 
-const fs = require("node:fs");
-const path = require("node:path");
-const Database = require("better-sqlite3");
+const { randomUUID } = require("node:crypto");
 const bcrypt = require("bcryptjs");
 
 const SCHEMA = `
@@ -14,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   phone TEXT,
   address TEXT,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -23,24 +21,25 @@ CREATE TABLE IF NOT EXISTS products (
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   cost_cents INTEGER NOT NULL CHECK (cost_cents >= 0),
   stock INTEGER NOT NULL CHECK (stock >= 0),
-  description TEXT DEFAULT '',
-  allergens TEXT DEFAULT '',
-  shelf_life_days INTEGER,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  description TEXT NOT NULL DEFAULT '',
+  allergens TEXT NOT NULL DEFAULT '',
+  shelf_life TEXT,
+  image TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS promotions (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('percent', 'value')),
-  value REAL NOT NULL CHECK (value > 0),
+  type TEXT NOT NULL CHECK (type IN ('percent', 'fixed')),
+  value DOUBLE PRECISION NOT NULL CHECK (value > 0),
   product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
   start_date TEXT NOT NULL,
   end_date TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CHECK (end_date >= start_date),
-  CHECK (type != 'percent' OR value <= 100)
+  CHECK (type <> 'percent' OR value <= 90)
 );
 
 CREATE TABLE IF NOT EXISTS sales (
@@ -50,21 +49,24 @@ CREATE TABLE IF NOT EXISTS sales (
   channel TEXT NOT NULL CHECK (channel IN ('balcao', 'delivery', 'encomenda')),
   payment TEXT NOT NULL CHECK (payment IN ('Pix', 'Cartão', 'Dinheiro')),
   status TEXT NOT NULL CHECK (status IN ('pendente', 'ok', 'cancelled')),
-  paid INTEGER NOT NULL DEFAULT 0,
-  payment_informed INTEGER NOT NULL DEFAULT 0,
+  paid BOOLEAN NOT NULL DEFAULT false,
+  payment_informed BOOLEAN NOT NULL DEFAULT false,
   customer_name TEXT,
   customer_phone TEXT,
   customer_address TEXT,
   delivery_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (delivery_fee_cents >= 0),
   delivery_date TEXT,
   created_by_user_id TEXT REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- product_id não referencia products(id) de propósito: excluir um produto não
+-- pode falhar nem apagar o histórico de vendas (cada item já guarda seu
+-- próprio nome/preço/custo no momento da venda).
 CREATE TABLE IF NOT EXISTS sale_items (
   id TEXT PRIMARY KEY,
   sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
-  product_id TEXT NOT NULL REFERENCES products(id),
+  product_id TEXT NOT NULL,
   name TEXT NOT NULL,
   unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0),
   unit_cost_cents INTEGER NOT NULL CHECK (unit_cost_cents >= 0),
@@ -75,38 +77,27 @@ CREATE TABLE IF NOT EXISTS sale_items (
 
 CREATE INDEX IF NOT EXISTS idx_sales_status ON sales(status);
 CREATE INDEX IF NOT EXISTS idx_sales_channel ON sales(channel);
+CREATE INDEX IF NOT EXISTS idx_sales_customer_phone ON sales(customer_phone);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_promotions_product ON promotions(product_id);
 `;
 
-function openDatabase(filePath) {
-  if (filePath !== ":memory:") {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  }
-  const db = new Database(filePath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.exec(SCHEMA);
-  return db;
+async function runMigrations(pool) {
+  await pool.query(SCHEMA);
 }
 
-function ensureAdminUser(db, { username, password, name }) {
+async function ensureAdminUser(pool, { username, password, name }) {
   if (!username || !password) return;
-  const existingAdmin = db
-    .prepare("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
-    .get();
-  if (existingAdmin) return;
+  const { rows: admins } = await pool.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+  if (admins.length) return;
 
-  const existingUsername = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get(username);
-  if (existingUsername) return;
+  const { rows: taken } = await pool.query("SELECT id FROM users WHERE username = $1", [username]);
+  if (taken.length) return;
 
-  const { randomUUID } = require("node:crypto");
-  db.prepare(
-    `INSERT INTO users (id, username, password_hash, role, name)
-     VALUES (?, ?, ?, 'admin', ?)`
-  ).run(randomUUID(), username, bcrypt.hashSync(password, 12), name || "Administradora");
+  await pool.query(
+    `INSERT INTO users (id, username, password_hash, role, name) VALUES ($1, $2, $3, 'admin', $4)`,
+    [randomUUID(), username, bcrypt.hashSync(password, 12), name || "Administradora"]
+  );
 }
 
-module.exports = { openDatabase, ensureAdminUser };
+module.exports = { runMigrations, ensureAdminUser };

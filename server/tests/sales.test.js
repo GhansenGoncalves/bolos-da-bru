@@ -8,7 +8,7 @@ const { buildApp } = require("./helpers");
 async function adminToken(app) {
   const res = await request(app)
     .post("/api/auth/login")
-    .send({ username: "admin", password: "senha-forte-123" });
+    .send({ identifier: "admin", password: "senha-forte-123" });
   return res.body.token;
 }
 
@@ -21,7 +21,7 @@ async function createProduct(app, token, overrides = {}) {
 }
 
 test("preço e custo enviados pelo cliente são ignorados: o servidor usa o valor real do produto", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const token = await adminToken(app);
   const product = await createProduct(app, token);
 
@@ -40,7 +40,7 @@ test("preço e custo enviados pelo cliente são ignorados: o servidor usa o valo
 });
 
 test("venda de balcão não pode passar do estoque disponível, e não decrementa se a transação falhar", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const token = await adminToken(app);
   const product = await createProduct(app, token, { stock: 3 });
 
@@ -56,7 +56,7 @@ test("venda de balcão não pode passar do estoque disponível, e não decrement
 });
 
 test("venda de balcão decrementa estoque; cancelar devolve o estoque", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const token = await adminToken(app);
   const product = await createProduct(app, token, { stock: 5 });
 
@@ -79,7 +79,7 @@ test("venda de balcão decrementa estoque; cancelar devolve o estoque", async ()
 });
 
 test("encomenda não exige nem baixa estoque, mesmo além do disponível", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const token = await adminToken(app);
   const product = await createProduct(app, token, { stock: 0 });
 
@@ -102,13 +102,13 @@ test("encomenda não exige nem baixa estoque, mesmo além do disponível", async
 });
 
 test("cliente sem papel admin só pode registrar encomenda, nunca balcão ou delivery", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const adminTok = await adminToken(app);
   const product = await createProduct(app, adminTok);
 
   const register = await request(app)
     .post("/api/auth/register")
-    .send({ username: "cliente-loja", password: "senha123", name: "Cliente" });
+    .send({ email: "cliente-loja@example.com", phone: "11955554444", password: "senha123", name: "Cliente" });
   const customerToken = register.body.token;
 
   const balcao = await request(app)
@@ -131,7 +131,7 @@ test("cliente sem papel admin só pode registrar encomenda, nunca balcão ou del
 });
 
 test("pedido anônimo da Loja (sem token) não pode forjar taxa de entrega; fica zerada até a admin ajustar", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const adminTok = await adminToken(app);
   const product = await createProduct(app, adminTok);
 
@@ -142,6 +142,7 @@ test("pedido anônimo da Loja (sem token) não pode forjar taxa de entrega; fica
       payment: "Pix",
       items: [{ productId: product.id, qty: 1 }],
       customerName: "Cliente Anônimo",
+      customerPhone: "11933332222",
       deliveryDate: "2999-01-01",
       deliveryFee: 999, // tentativa de forjar taxa alta
     });
@@ -157,7 +158,7 @@ test("pedido anônimo da Loja (sem token) não pode forjar taxa de entrega; fica
 });
 
 test("promoção ativa é aplicada automaticamente pelo servidor, mesmo sem o cliente informar desconto", async () => {
-  const { app } = buildApp();
+  const { app } = await buildApp();
   const token = await adminToken(app);
   const product = await createProduct(app, token, { price: 20, cost: 8, stock: 10 });
 
@@ -174,4 +175,64 @@ test("promoção ativa é aplicada automaticamente pelo servidor, mesmo sem o cl
   assert.equal(sale.status, 201);
   assert.equal(sale.body.items[0].discount, 2); // 10% de 20
   assert.equal(sale.body.total, 18);
+});
+
+test("promoção percentual acima de 90% é rejeitada mesmo que o cliente tente burlar depois", async () => {
+  const { app } = await buildApp();
+  const token = await adminToken(app);
+  const res = await request(app)
+    .post("/api/promotions")
+    .set("Authorization", `Bearer ${token}`)
+    .send({ name: "Desconto absurdo", type: "percent", value: 95, startDate: "2000-01-01", endDate: "2999-01-01" });
+  assert.equal(res.status, 422);
+});
+
+test("cliente avisa pagamento (Pix) via rota pública; não pode avisar de novo nem se já confirmado", async () => {
+  const { app } = await buildApp();
+  const adminTok = await adminToken(app);
+  const product = await createProduct(app, adminTok);
+
+  const sale = await request(app)
+    .post("/api/sales")
+    .send({
+      channel: "encomenda",
+      payment: "Pix",
+      items: [{ productId: product.id, qty: 1 }],
+      customerName: "Cliente Pix",
+      customerPhone: "11911112222",
+      deliveryDate: "2999-01-01",
+    });
+
+  const inform = await request(app).patch(`/api/sales/${sale.body.id}/inform-payment`);
+  assert.equal(inform.status, 200);
+  assert.equal(inform.body.paymentInformed, true);
+  assert.equal(inform.body.items[0].unitCost, undefined, "rota pública não expõe custo");
+
+  const informAgain = await request(app).patch(`/api/sales/${sale.body.id}/inform-payment`);
+  assert.equal(informAgain.status, 409);
+});
+
+test("rastreio público por telefone encontra os pedidos da cliente, sem custo/lucro", async () => {
+  const { app } = await buildApp();
+  const adminTok = await adminToken(app);
+  const product = await createProduct(app, adminTok);
+
+  await request(app)
+    .post("/api/sales")
+    .send({
+      channel: "encomenda",
+      payment: "Dinheiro",
+      items: [{ productId: product.id, qty: 1 }],
+      customerName: "Rastreável",
+      customerPhone: "(11) 90000-1234",
+      deliveryDate: "2999-01-01",
+    });
+
+  const track = await request(app).get("/api/sales/track").query({ phone: "11900001234" });
+  assert.equal(track.status, 200);
+  assert.equal(track.body.length, 1);
+  assert.equal(track.body[0].items[0].unitCost, undefined);
+
+  const notFound = await request(app).get("/api/sales/track").query({ phone: "11999999999" });
+  assert.equal(notFound.body.length, 0);
 });

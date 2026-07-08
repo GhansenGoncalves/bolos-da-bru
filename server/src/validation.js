@@ -5,17 +5,19 @@ const { z } = require("zod");
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD.");
 const money = z.number().finite().nonnegative().max(100000, "Valor acima do limite permitido.");
 
+// "identifier" aceita usuário admin OU e-mail/telefone do cliente — a rota
+// de login decide qual coluna bate.
 const loginSchema = z.object({
-  username: z.string().trim().min(1),
+  identifier: z.string().trim().min(1),
   password: z.string().min(1),
 });
 
 const registerCustomerSchema = z.object({
-  username: z.string().trim().min(3).max(40),
+  name: z.string().trim().min(2, "Informe seu nome completo.").max(120),
+  email: z.string().trim().toLowerCase().email("E-mail inválido."),
+  phone: z.string().trim().min(1, "Telefone inválido — use DDD + número.").max(30)
+    .refine((v) => v.replace(/\D/g, "").length >= 10, "Telefone inválido — use DDD + número."),
   password: z.string().min(6, "A senha precisa de pelo menos 6 caracteres."),
-  name: z.string().trim().min(1).max(120),
-  phone: z.string().trim().max(30).optional().default(""),
-  address: z.string().trim().max(240).optional().default(""),
 });
 
 const productSchema = z.object({
@@ -25,7 +27,8 @@ const productSchema = z.object({
   stock: z.number().int().nonnegative().max(100000),
   description: z.string().trim().max(2000).optional().default(""),
   allergens: z.string().trim().max(500).optional().default(""),
-  shelfLifeDays: z.number().int().positive().max(365).optional().nullable(),
+  shelfLife: z.string().trim().max(60).optional().default(""),
+  image: z.string().trim().max(400000, "Imagem grande demais.").optional().nullable(),
 }).refine((p) => p.cost <= p.price, {
   message: "O custo não pode ser maior que o preço de venda.",
   path: ["cost"],
@@ -33,7 +36,7 @@ const productSchema = z.object({
 
 const promotionSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  type: z.enum(["percent", "value"]),
+  type: z.enum(["percent", "fixed"]),
   value: z.number().positive(),
   productId: z.string().trim().min(1).nullable().optional().default(null),
   startDate: isoDate,
@@ -41,8 +44,8 @@ const promotionSchema = z.object({
 }).refine((p) => p.endDate >= p.startDate, {
   message: "A data final não pode ser anterior à inicial.",
   path: ["endDate"],
-}).refine((p) => p.type !== "percent" || p.value <= 100, {
-  message: "Promoção percentual não pode passar de 100%.",
+}).refine((p) => p.type !== "percent" || p.value <= 90, {
+  message: "Desconto máximo permitido: 90%.",
   path: ["value"],
 });
 
@@ -75,6 +78,10 @@ const deliveryFeeUpdateSchema = z.object({
   deliveryFee: money,
 });
 
+const trackQuerySchema = z.object({
+  phone: z.string().trim().refine((v) => v.replace(/\D/g, "").length >= 8, "Telefone incompleto."),
+});
+
 function validate(schema, payload) {
   const result = schema.safeParse(payload);
   if (!result.success) {
@@ -93,5 +100,6 @@ module.exports = {
   promotionSchema,
   saleSchema,
   deliveryFeeUpdateSchema,
+  trackQuerySchema,
   validate,
 };
